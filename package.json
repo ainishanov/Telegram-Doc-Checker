@@ -1,0 +1,27 @@
+{
+  "name": "telegram-doc-checker",
+  "version": "1.0.0",
+  "description": "Telegram bot for checking documents using ChatGPT",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.17.1",
+    "dotenv": "^16.4.1",
+    "node-telegram-bot-api": "^0.64.0",
+    "openai": "^4.24.1",
+    "pdf-parse": "^1.1.1",
+    "mammoth": "^1.6.0",
+    "docx-parser": "^0.2.1",
+    "rtf-parser": "^1.3.3",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 
