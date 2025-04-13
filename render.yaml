@@ -2,6 +2,7 @@ services:
   - type: web
     name: telegram-doc-checker
     env: node
+    root: ./
     buildCommand: npm install
     startCommand: node src/index.js
     envVars:
@@ -10,4 +11,8 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
-        value: gpt-4-turbo 
+        value: gpt-4-turbo
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: USE_ANTHROPIC_MODEL
+        value: "true" 
