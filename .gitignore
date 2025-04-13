@@ -1,29 +1,29 @@
 # Зависимости
 node_modules/
-package-lock.json
-yarn.lock
+npm-debug.log
+yarn-debug.log
+yarn-error.log
 
 # Переменные окружения
 .env
 
-# Данные пользователей
+# Файлы данных
 data/
-*.json
-
-# Временные файлы
-temp/
 
 # Логи
-logs/
+logs
 *.log
-npm-debug.log*
 
-# Редакторы
-.vscode/
+# Временные файлы операционной системы
+.DS_Store
+Thumbs.db
+
+# IDE и редакторы
 .idea/
+.vscode/
 *.swp
 *.swo
 
-# ОС
-.DS_Store
-Thumbs.db 
+# Файлы сборки
+dist/
+build/ 
