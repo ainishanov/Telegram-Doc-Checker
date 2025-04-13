@@ -1,11 +1,26 @@
 const OpenAI = require('openai');
 const config = require('../config/config');
 
-// Инициализация клиента OpenAI
-const openai = new OpenAI({
-  apiKey: config.openaiApiKey,
-  timeout: 120000 // Увеличиваем таймаут до 2 минут
-});
+// Инициализация клиента OpenAI только если не используется Anthropic
+let openai = null;
+if (!config.useAnthropicModel) {
+  openai = new OpenAI({
+    apiKey: config.openaiApiKey,
+    timeout: 120000 // Увеличиваем таймаут до 2 минут
+  });
+} else {
+  // Создаем заглушку для случаев, когда используется Anthropic
+  console.log('Используется Anthropic Claude вместо OpenAI, создаем заглушку для OpenAI');
+  openai = {
+    chat: {
+      completions: {
+        create: async () => {
+          throw new Error('OpenAI API не используется в этой конфигурации. Используется Anthropic Claude.');
+        }
+      }
+    }
+  };
+}
 
 /**
  * Проверка, является ли документ договором
