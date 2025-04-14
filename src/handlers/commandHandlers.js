@@ -3,6 +3,18 @@ const { getUserLimits, PLANS, getUserData } = require('../models/userLimits');
 const { handleStatus, handleUpgrade, handleDowngrade, handleShowTariff } = require('./planHandlers');
 const config = require('../config/config');
 
+// Информация о компании
+const COMPANY_INFO = {
+  name: "ИП Нишанов Айнур Рамилевич",
+  inn: "166011501830", 
+  ogrnip: "321169000232129",
+  contacts: {
+    phone: "+7 (917) 253-25-80",
+    email: "nishanov.ainur@gmail.com"
+  },
+  offerUrl: "https://raw.githubusercontent.com/ainishanov/Telegram-Doc-Checker/main/src/static/offer.html"
+};
+
 /**
  * Создает постоянное меню с кнопками
  * @param {Object} bot - Экземпляр бота
@@ -11,7 +23,8 @@ function setupPermanentMenu(bot) {
   const menuButtons = {
     keyboard: [
       [{ text: '📊 Мой тариф' }],
-      [{ text: '📋 Функции бота' }]
+      [{ text: '📋 Функции бота' }],
+      [{ text: 'ℹ️ О компании' }]
     ],
     resize_keyboard: true,
     persistent: true
@@ -21,7 +34,8 @@ function setupPermanentMenu(bot) {
     { command: '/start', description: 'Начать работу с ботом' },
     { command: '/tariff', description: 'Проверить текущий тариф' },
     { command: '/plans', description: 'Доступные тарифные планы' },
-    { command: '/help', description: 'Список функций бота' }
+    { command: '/help', description: 'Список функций бота' },
+    { command: '/about', description: 'Информация о компании' }
   ]);
 
   return menuButtons;
@@ -42,6 +56,9 @@ function handleMenuCommand(bot, msg) {
       break;
     case '📋 Функции бота':
       handleHelp(bot, msg);
+      break;
+    case 'ℹ️ О компании':
+      handleAbout(bot, msg);
       break;
   }
 }
@@ -65,6 +82,8 @@ const handleStart = async (bot, msg) => {
 
 *Важно:* У вас есть 3 проверки договоров бесплатно. Для получения дополнительных проверок вы можете приобрести платный тариф.
 
+Используйте команду /about для получения информации о компании и договора оферты.
+
 Используйте кнопки меню для быстрого доступа к функциям бота.
 `;
   
@@ -85,7 +104,9 @@ const handleHelp = async (bot, msg) => {
 
 /start - Начать работу с ботом
 /help - Показать это сообщение
-/users - Показать список пользователей (только для админов)
+/about - Информация о компании и договор оферты
+/tariff - Проверить текущий тариф
+/plans - Доступные тарифные планы
 
 📄 *Анализ документов:*
 Отправьте документ в формате PDF или DOC/DOCX для анализа.
@@ -93,6 +114,52 @@ const handleHelp = async (bot, msg) => {
 `;
 
   await bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
+};
+
+/**
+ * Обработчик команды /about - показывает информацию о компании и договор оферты
+ * @param {Object} bot - Экземпляр бота 
+ * @param {Object} msg - Сообщение от пользователя
+ */
+const handleAbout = async (bot, msg) => {
+  const chatId = msg.chat.id;
+  
+  // Подготавливаем информацию о компании
+  const companyInfoText = `
+*Информация о компании:*
+
+*${COMPANY_INFO.name}*
+ИНН: ${COMPANY_INFO.inn}
+ОГРНИП: ${COMPANY_INFO.ogrnip}
+
+*Контактные данные:*
+Телефон: ${COMPANY_INFO.contacts.phone}
+Email: ${COMPANY_INFO.contacts.email}
+
+*Пользовательское соглашение:*
+Используя данного бота, вы принимаете условия пользовательского соглашения.
+`;
+
+  // Сначала отправляем информацию о компании
+  await bot.sendMessage(chatId, companyInfoText, { parse_mode: 'Markdown' });
+  
+  // Затем отправляем договор оферты с кнопкой для просмотра
+  const offerMessage = `
+*Договор оферты:*
+
+Перед использованием бота и оплатой услуг, пожалуйста, ознакомьтесь с договором оферты.
+`;
+
+  const offerButton = {
+    inline_keyboard: [
+      [{ text: 'Просмотреть договор оферты', url: COMPANY_INFO.offerUrl }]
+    ]
+  };
+  
+  await bot.sendMessage(chatId, offerMessage, { 
+    parse_mode: 'Markdown',
+    reply_markup: offerButton
+  });
 };
 
 /**
@@ -201,5 +268,6 @@ module.exports = {
   handleHelp,
   handleUsers,
   handleMenuCommand,
-  setupPermanentMenu
+  setupPermanentMenu,
+  handleAbout
 }; 
