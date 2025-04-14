@@ -8,11 +8,5 @@ services:
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_MODEL
-        value: gpt-4-turbo
       - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: USE_ANTHROPIC_MODEL
-        value: "true" 
+        sync: false 

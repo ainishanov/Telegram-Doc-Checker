@@ -20,8 +20,9 @@ if (!config.telegramToken) {
   process.exit(1);
 }
 
-if (!config.openaiApiKey) {
-  console.error('Не указан API ключ OpenAI. Пожалуйста, задайте переменную окружения OPENAI_API_KEY.');
+// Проверка наличия API ключа Anthropic
+if (!config.anthropicApiKey) {
+  console.error('Не указан API ключ Anthropic. Пожалуйста, задайте переменную окружения ANTHROPIC_API_KEY.');
   process.exit(1);
 }
 

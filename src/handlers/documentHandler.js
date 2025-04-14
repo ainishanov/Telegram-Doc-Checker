@@ -1,5 +1,4 @@
 const { downloadTelegramFile, extractTextFromDocument } = require('../utils/documentParser');
-const { analyzeDocument, isContractDocument } = require('../utils/openai');
 const anthropicService = require('../utils/anthropic');
 const { getUserSettings } = require('../models/userSettings');
 const { canMakeRequest, canMakeVerificationRequest, registerRequest, getPlansInfo, PLANS } = require('../models/userLimits');
@@ -551,14 +550,57 @@ async function handlePartySelection(bot, query) {
 }
 
 async function analyzeDocumentWithSelectedModel(text) {
-  if (config.useAnthropicModel) {
-    return await anthropicService.analyzeDocument(text);
-  } else {
-    return await analyzeDocument(text);
+  return await anthropicService.analyzeDocument(text);
+}
+
+// Упрощенная функция проверки документа
+async function isContractDocument(text) {
+  if (!text || text.trim() === '') {
+    return { 
+      result: false, 
+      reason: 'Документ не содержит текста'
+    };
   }
+  
+  // Простая проверка на ключевые слова договора
+  const lowerText = text.toLowerCase().substring(0, 5000);
+  const contractKeywords = [
+    'договор', 'соглашение', 'контракт', 'стороны договорились', 
+    'предмет договора', 'обязанности сторон', 'условия договора',
+    'настоящий договор', 'обязуется', 'заключили настоящий',
+    'исполнитель', 'заказчик', 'ответственность сторон'
+  ];
+  
+  const contractKeywordsCount = contractKeywords.filter(keyword => 
+    lowerText.includes(keyword.toLowerCase())
+  ).length;
+  
+  if (contractKeywordsCount >= 3) {
+    console.log(`Документ содержит ${contractKeywordsCount} ключевых слов договора. Быстрая проверка пройдена.`);
+    return { 
+      result: true, 
+      reason: `Документ содержит характерные признаки договора (найдено ${contractKeywordsCount} ключевых слов)`
+    };
+  }
+  
+  // Проверка на счет
+  if (lowerText.includes('счет на оплату') || lowerText.includes('счет-фактура') || 
+      lowerText.includes('счет №') || lowerText.includes('счёт №')) {
+    return { 
+      result: false, 
+      reason: 'Документ является счетом (обнаружены явные признаки счета)'
+    };
+  }
+  
+  // Если не удалось определить, считаем что это не договор и просим уточнить
+  return {
+    result: false,
+    reason: 'Не удалось определить тип документа. Если это договор, пожалуйста, укажите это явно в сообщении.'
+  };
 }
 
 module.exports = {
   handleDocument,
-  handlePartySelection
+  handlePartySelection,
+  isContractDocument
 }; 
