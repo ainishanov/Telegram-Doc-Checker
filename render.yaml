@@ -1,5 +1,5 @@
 services:
-  - type: web
+  - type: worker
     name: telegram-doc-checker
     env: node
     root: ./
