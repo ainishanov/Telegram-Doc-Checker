@@ -5,7 +5,8 @@ const {
   handleHelp,
   handleUsers,
   handleMenuCommand,
-  setupPermanentMenu
+  setupPermanentMenu,
+  handleAbout
 } = require('./handlers/commandHandlers');
 const { handleDocument, handlePartySelection } = require('./handlers/documentHandler');
 const {
@@ -142,6 +143,7 @@ async function startBot() {
   bot.onText(/\/users/, (msg) => handleUsers(bot, msg));
   bot.onText(/\/tariff/, (msg) => handleShowTariff(bot, msg));
   bot.onText(/\/plans/, (msg) => handleShowPlans(bot, msg));
+  bot.onText(/\/about/, (msg) => handleAbout(bot, msg));
   
   // Обработчик текстовых сообщений для меню
   bot.on('text', (msg) => {

@@ -5,12 +5,11 @@ const config = require('../config/config');
 
 // Информация о компании
 const COMPANY_INFO = {
-  name: "ИП Нишанов Айнур Рамилевич",
-  inn: "166011501830", 
-  ogrnip: "321169000232129",
+  name: "ИП Нишанов Айнур Абдулазизович",
+  inn: "164609405227", 
+  ogrnip: "314167427200089",
   contacts: {
-    phone: "+7 (917) 253-25-80",
-    email: "nishanov.ainur@gmail.com"
+    email: "ainur.nishanov@gmail.com"
   },
   offerUrl: "https://raw.githubusercontent.com/ainishanov/Telegram-Doc-Checker/main/src/static/offer.html"
 };
@@ -133,7 +132,6 @@ const handleAbout = async (bot, msg) => {
 ОГРНИП: ${COMPANY_INFO.ogrnip}
 
 *Контактные данные:*
-Телефон: ${COMPANY_INFO.contacts.phone}
 Email: ${COMPANY_INFO.contacts.email}
 
 *Пользовательское соглашение:*
