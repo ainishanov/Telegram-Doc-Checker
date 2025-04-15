@@ -197,8 +197,8 @@ async function startBot() {
     }
   }
   
-  // Устанавливаем постоянное меню
-  const menuButtons = setupPermanentMenu(bot);
+  // Устанавливаем постоянное меню ОДИН РАЗ при запуске
+  setupPermanentMenu(bot);
   
   // Обработчики команд
   bot.onText(/\/start/, (msg) => handleStart(bot, msg));

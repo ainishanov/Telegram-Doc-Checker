@@ -29,15 +29,24 @@ function setupPermanentMenu(bot) {
     persistent: true
   };
 
-  bot.setMyCommands([
-    { command: '/start', description: 'Начать работу с ботом' },
-    { command: '/tariff', description: 'Проверить текущий тариф' },
-    { command: '/plans', description: 'Доступные тарифные планы' },
-    { command: '/help', description: 'Список функций бота' },
-    { command: '/about', description: 'Информация о компании' }
-  ]);
+  try {
+    bot.setMyCommands([
+      { command: '/start', description: 'Начать работу с ботом' },
+      { command: '/tariff', description: 'Проверить текущий тариф' },
+      { command: '/plans', description: 'Доступные тарифные планы' },
+      { command: '/help', description: 'Список функций бота' },
+      { command: '/about', description: 'Информация о компании' }
+    ]).then(() => {
+      console.log('[INFO] Команды бота успешно установлены.');
+    }).catch((error) => {
+      console.error('[ERROR] Не удалось установить команды бота:', error.message);
+    });
+  } catch (error) {
+    console.error('[ERROR] Ошибка при вызове setMyCommands:', error.message);
+  }
 
-  return menuButtons;
+  // Возвращаем только разметку клавиатуры для использования в sendMessage
+  return { reply_markup: menuButtons };
 }
 
 /**
@@ -70,9 +79,15 @@ function handleMenuCommand(bot, msg) {
 const handleStart = async (bot, msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id.toString();
-  const userData = getUserData(userId);
   
-  const menuButtons = setupPermanentMenu(bot);
+  console.time(`handleStart_${chatId}`); // Начинаем замер времени
+  
+  console.time(`getUserData_${chatId}`);
+  const userData = getUserData(userId); // Получаем данные
+  console.timeEnd(`getUserData_${chatId}`);
+  
+  // Получаем разметку меню (без установки команд)
+  const menuKeyboard = setupPermanentMenu(bot);
   
   const message = `
 Привет! Я бот для проверки договоров с помощью искусственного интеллекта.
@@ -86,10 +101,18 @@ const handleStart = async (bot, msg) => {
 Используйте кнопки меню для быстрого доступа к функциям бота.
 `;
   
-  await bot.sendMessage(chatId, message, { 
-    parse_mode: 'Markdown',
-    reply_markup: menuButtons
-  });
+  console.time(`sendMessage_${chatId}`);
+  try {
+    await bot.sendMessage(chatId, message, { 
+      parse_mode: 'Markdown',
+      ...menuKeyboard // Используем полученную разметку
+    });
+  } catch (error) {
+    console.error(`[ERROR] Не удалось отправить сообщение /start для chatId ${chatId}:`, error.message);
+  }
+  console.timeEnd(`sendMessage_${chatId}`);
+  
+  console.timeEnd(`handleStart_${chatId}`); // Заканчиваем замер времени
 };
 
 /**
