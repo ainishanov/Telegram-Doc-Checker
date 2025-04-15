@@ -1,7 +1,7 @@
 const { downloadTelegramFile, extractTextFromDocument } = require('../utils/documentParser');
 const anthropicService = require('../utils/anthropic');
 const { getUserSettings } = require('../models/userSettings');
-const { canMakeRequest, canMakeVerificationRequest, registerRequest, getPlansInfo, PLANS } = require('../models/userLimits');
+const { canMakeRequest, registerRequest, getPlansInfo, PLANS } = require('../models/userLimits');
 const path = require('path');
 const axios = require('axios');
 const config = require('../config');
@@ -29,8 +29,8 @@ async function handleDocument(bot, msg, options = {}) {
   // Если в подписи или имени файла есть указание на договор, устанавливаем флаг принудительной обработки
   const shouldForceContract = forceContract || hasForceKeyword || hasContractInName;
   
-  // Проверяем возможность предварительной проверки документа
-  const verificationCheck = canMakeVerificationRequest(userId);
+  // Проверяем возможность проверки документа (доступность лимитов)
+  const verificationCheck = canMakeRequest(userId);
   
   if (!verificationCheck.allowed) {
     if (verificationCheck.reason === 'payment_required') {
@@ -38,6 +38,14 @@ async function handleDocument(bot, msg, options = {}) {
       bot.sendMessage(
         chatId,
         '⚠️ *Требуется оплата*\n\nВаш тариф еще не оплачен. Используйте команду /payment для оплаты или /downgrade для возврата к бесплатному тарифу.',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    } else if (verificationCheck.reason === 'limit_reached') {
+      // Превышен лимит запросов
+      bot.sendMessage(
+        chatId,
+        `⚠️ *Превышен лимит запросов*\n\nВы достигли лимита проверок документов для вашего тарифа.\n\nИспользуйте команду /plans для просмотра и выбора тарифа с большим количеством проверок.`,
         { parse_mode: 'Markdown' }
       );
       return;
@@ -328,7 +336,8 @@ async function handleDocument(bot, msg, options = {}) {
       `*Определены стороны договора:*\n` +
       `1️⃣ ${analysis.party1.role}: *${analysis.party1.name}*\n` +
       `2️⃣ ${analysis.party2.role}: *${analysis.party2.name}*\n\n` +
-      `Выберите, какой стороной договора вы являетесь:${limitInfo}`;
+      `Выберите, какой стороной договора вы являетесь:${limitInfo}\n\n` +
+      `❗️ _Обратите внимание: данный анализ не является юридической консультацией и представляет собой автоматизированный информационный обзор документа._`;
 
     // Отправляем результат
     await bot.editMessageText(message, {
@@ -473,17 +482,19 @@ async function handlePartySelection(bot, query) {
       termsMessage += `${analysis.mainTerms.special}\n\n`;
     }
 
+    termsMessage += `❗️ _Данная информация носит справочный характер и не является юридическим заключением._`;
+
     // Отправляем первое сообщение с условиями
     await bot.sendMessage(chatId, termsMessage, { parse_mode: 'Markdown' });
 
     // СООБЩЕНИЕ 2: Анализ и рекомендации
-    let analysisMessage = `*ПРЕДЛОЖЕНИЯ ПО ДОРАБОТКЕ ДОГОВОРА*\n\n`;
+    let analysisMessage = `*ИНФОРМАЦИЯ ДЛЯ ОБСУЖДЕНИЯ УСЛОВИЙ ДОГОВОРА*\n\n`;
     
     let sectionNumber = 1;
     
     // Существенные условия, требующие уточнения
     if (partyAnalysis.criticalErrors && partyAnalysis.criticalErrors.length > 0) {
-      analysisMessage += `*${sectionNumber}. СУЩЕСТВЕННЫЕ УСЛОВИЯ, ТРЕБУЮЩИЕ УТОЧНЕНИЯ:*\n\n`;
+      analysisMessage += `*${sectionNumber}. МОМЕНТЫ, КОТОРЫЕ МОГУТ ПОТРЕБОВАТЬ ОБСУЖДЕНИЯ:*\n\n`;
       partyAnalysis.criticalErrors.forEach((error, index) => {
         analysisMessage += `${index + 1}. ${error}\n`;
       });
@@ -493,7 +504,7 @@ async function handlePartySelection(bot, query) {
     
     // Предложения по конкретизации условий
     if (partyAnalysis.improvements && partyAnalysis.improvements.length > 0) {
-      analysisMessage += `*${sectionNumber}. ПРЕДЛОЖЕНИЯ ПО КОНКРЕТИЗАЦИИ УСЛОВИЙ:*\n\n`;
+      analysisMessage += `*${sectionNumber}. ПУНКТЫ, КОТОРЫЕ МОЖНО ОБСУДИТЬ ДЛЯ БОЛЬШЕЙ ЯСНОСТИ:*\n\n`;
       partyAnalysis.improvements.forEach((imp, index) => {
         analysisMessage += `${index + 1}. ${imp}\n`;
       });
@@ -503,7 +514,7 @@ async function handlePartySelection(bot, query) {
     
     // Вопросы для обсуждения
     if (partyAnalysis.risks && partyAnalysis.risks.length > 0) {
-      analysisMessage += `*${sectionNumber}. ПУНКТЫ, ТРЕБУЮЩИЕ СОГЛАСОВАНИЯ:*\n\n`;
+      analysisMessage += `*${sectionNumber}. ВОПРОСЫ ДЛЯ СОГЛАСОВАНИЯ С КОНТРАГЕНТОМ:*\n\n`;
       partyAnalysis.risks.forEach((risk, index) => {
         analysisMessage += `${index + 1}. ${risk}\n`;
       });
@@ -513,7 +524,7 @@ async function handlePartySelection(bot, query) {
     
     // Итоговые предложения
     if (analysis.conclusion.mainProblems && analysis.conclusion.mainProblems.length > 0) {
-      analysisMessage += `*${sectionNumber}. ПРЕДЛАГАЕМЫЕ ИЗМЕНЕНИЯ:*\n\n`;
+      analysisMessage += `*${sectionNumber}. ПОТЕНЦИАЛЬНЫЕ ВОПРОСЫ ДЛЯ УТОЧНЕНИЯ:*\n\n`;
       analysis.conclusion.mainProblems.forEach((problem, index) => {
         analysisMessage += `${index + 1}. ${problem}\n`;
       });
@@ -522,17 +533,19 @@ async function handlePartySelection(bot, query) {
     }
     
     if (analysis.conclusion.recommendedActions && analysis.conclusion.recommendedActions.length > 0) {
-      analysisMessage += `*${sectionNumber}. ПОРЯДОК РЕАЛИЗАЦИИ:*\n\n`;
+      analysisMessage += `*${sectionNumber}. ВОЗМОЖНЫЕ ШАГИ ПО РАБОТЕ С ДОГОВОРОМ:*\n\n`;
       analysis.conclusion.recommendedActions.forEach((action, index) => {
         analysisMessage += `${index + 1}. ${action}\n`;
       });
     }
 
+    analysisMessage += `\n❗️ _Обратите внимание: все содержащиеся здесь наблюдения не являются юридической консультацией и предоставляются исключительно в информационных целях. Для получения квалифицированной юридической помощи обратитесь к лицензированным специалистам._`;
+
     // Отправляем второе сообщение с анализом
     await bot.sendMessage(chatId, analysisMessage, { parse_mode: 'Markdown' });
 
     // Отправляем третье сообщение с призывом к действию
-    await bot.sendMessage(chatId, '⬆️ *Перешлите сообщение выше контрагенту для согласования предложенных изменений*', { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, '⬆️ *Вы можете переслать сообщение выше контрагенту для обсуждения условий договора*', { parse_mode: 'Markdown' });
 
     // Подтверждаем обработку callback query
     await bot.answerCallbackQuery(query.id);
