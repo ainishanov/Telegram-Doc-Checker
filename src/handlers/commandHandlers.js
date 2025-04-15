@@ -11,7 +11,7 @@ const COMPANY_INFO = {
   contacts: {
     email: "ainur.nishanov@gmail.com"
   },
-  offerUrl: "https://raw.githubusercontent.com/ainishanov/Telegram-Doc-Checker/main/src/static/offer.html"
+  offerUrl: "https://ainishanov.github.io/Telegram-Doc-Checker/offer.html"
 };
 
 /**
