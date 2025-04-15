@@ -99,28 +99,40 @@ async function startBot() {
   }
   
   // Создаем Express приложение для обработки webhook
-  const express = require('express');
-  const app = express();
+  let app;
+  let expressAvailable = true;
   
-  // Парсим тело запроса как JSON
-  app.use(express.json());
-  
-  // Обработчик webhook
-  app.post(`/webhook/${config.telegramToken}`, (req, res) => {
-    bot.handleUpdate(req.body);
-    res.sendStatus(200);
-  });
+  try {
+    const express = require('express');
+    app = express();
+    
+    // Парсим тело запроса как JSON
+    app.use(express.json());
+    
+    // Обработчик webhook
+    app.post(`/webhook/${config.telegramToken}`, (req, res) => {
+      bot.handleUpdate(req.body);
+      res.sendStatus(200);
+    });
 
-  // Простой ответ для проверки работы сервиса
-  app.get('/', (req, res) => {
-    res.send('Бот активен и работает в режиме webhook');
-  });
-  
-  // Запускаем сервер
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => {
-    console.log(`Webhook сервер запущен на порту ${port}`);
-  });
+    // Простой ответ для проверки работы сервиса
+    app.get('/', (req, res) => {
+      res.send('Бот активен и работает в режиме webhook');
+    });
+    
+    // Запускаем сервер
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+      console.log(`Webhook сервер запущен на порту ${port}`);
+    });
+  } catch (error) {
+    if (error.code === 'MODULE_NOT_FOUND') {
+      console.log('Express не установлен. Работаем только через Telegram API (без локального сервера)');
+      expressAvailable = false;
+    } else {
+      console.error('Ошибка при создании Express приложения:', error);
+    }
+  }
   
   // Устанавливаем постоянное меню
   const menuButtons = setupPermanentMenu(bot);
