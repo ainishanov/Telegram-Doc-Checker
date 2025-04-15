@@ -1,10 +1,13 @@
 services:
-  - type: worker
+  - type: web
     name: telegram-doc-checker
     env: node
+    plan: starter
     root: ./
-    buildCommand: npm install
-    startCommand: npm run check-deps && node src/index.js
+    buildCommand: npm run render-build
+    startCommand: npm start
+    healthCheckPath: /status
+    autoDeploy: true
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
@@ -13,4 +16,6 @@ services:
       - key: NODE_ENV
         value: production
       - key: RENDER
-        value: true 
+        value: true
+      - key: RENDER_SERVICE_NAME
+        value: telegram-doc-checker 
