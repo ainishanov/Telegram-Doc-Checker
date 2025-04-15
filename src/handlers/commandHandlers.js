@@ -124,10 +124,14 @@ const handleAbout = async (bot, msg) => {
   const chatId = msg.chat.id;
 
   const aboutText = `
-*Договор оферты:*
+*Информация о компании:*
+
+*${COMPANY_INFO.name}*
+ИНН: ${COMPANY_INFO.inn}
+ОГРНИП: ${COMPANY_INFO.ogrnip}
+Email: ${COMPANY_INFO.contacts.email}
 
 Используя данного бота, вы соглашаетесь с условиями публичной оферты.
-
 [Ознакомиться с договором оферты](${COMPANY_INFO.offerUrl})
 `;
 
