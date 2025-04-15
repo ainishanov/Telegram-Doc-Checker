@@ -5,14 +5,28 @@ const path = require('path');
 const USERS_DATA_FILE = path.join(__dirname, '../../data/users.json');
 
 // Обеспечиваем существование директории data
-if (!fs.existsSync(path.join(__dirname, '../../data'))) {
-  fs.mkdirSync(path.join(__dirname, '../../data'), { recursive: true });
+try {
+  if (!fs.existsSync(path.join(__dirname, '../../data'))) {
+    fs.mkdirSync(path.join(__dirname, '../../data'), { recursive: true });
+    console.log('[INFO] Создана директория для данных пользователей');
+  }
+
+  // Инициализируем файл с данными пользователей, если он не существует
+  if (!fs.existsSync(USERS_DATA_FILE)) {
+    fs.writeFileSync(USERS_DATA_FILE, JSON.stringify({}), 'utf8');
+    console.log('[INFO] Создан файл для данных пользователей');
+  }
+  
+  // Проверяем права на запись
+  fs.accessSync(USERS_DATA_FILE, fs.constants.W_OK);
+  console.log('[INFO] Проверка прав доступа к файлу пользователей прошла успешно');
+} catch (error) {
+  console.error('[ERROR] Проблема с доступом к файловой системе:', error.message);
+  console.warn('[WARN] Будет использоваться временное хранилище в памяти');
 }
 
-// Инициализируем файл с данными пользователей, если он не существует
-if (!fs.existsSync(USERS_DATA_FILE)) {
-  fs.writeFileSync(USERS_DATA_FILE, JSON.stringify({}), 'utf8');
-}
+// Резервное хранилище в памяти на случай проблем с файлами
+const memoryStorage = {};
 
 /**
  * Доступные тарифные планы
@@ -71,35 +85,58 @@ const PLANS = {
  */
 function getUserData(userId) {
   try {
-    // Читаем данные всех пользователей
-    const usersData = JSON.parse(fs.readFileSync(USERS_DATA_FILE, 'utf8'));
+    // Создаем стандартные данные для нового пользователя
+    const defaultData = {
+      userId: userId,
+      plan: 'FREE',
+      requestsUsed: 0,
+      registrationDate: new Date().toISOString(),
+      subscriptionData: {
+        active: false,
+        planId: null,
+        startDate: null,
+        endDate: null,
+        paymentStatus: 'none' // none, pending, paid
+      }
+    };
     
-    // Если данных нет, создаем стандартные
-    if (!usersData[userId]) {
-      const defaultData = {
-        userId: userId,
-        plan: 'FREE',
-        requestsUsed: 0,
-        registrationDate: new Date().toISOString(),
-        subscriptionData: {
-          active: false,
-          planId: null,
-          startDate: null,
-          endDate: null,
-          paymentStatus: 'none' // none, pending, paid
-        }
-      };
-      
-      usersData[userId] = defaultData;
-      // Сохраняем обновленные данные
-      fs.writeFileSync(USERS_DATA_FILE, JSON.stringify(usersData, null, 2), 'utf8');
-      return defaultData;
+    // Сначала проверяем, есть ли данные в памяти
+    if (memoryStorage[userId]) {
+      return memoryStorage[userId];
     }
     
-    return usersData[userId];
+    // Пытаемся прочитать данные из файла
+    try {
+      const usersData = JSON.parse(fs.readFileSync(USERS_DATA_FILE, 'utf8'));
+      
+      // Если данных нет, создаем стандартные
+      if (!usersData[userId]) {
+        // Пытаемся сохранить в файл
+        try {
+          usersData[userId] = defaultData;
+          fs.writeFileSync(USERS_DATA_FILE, JSON.stringify(usersData, null, 2), 'utf8');
+        } catch (writeError) {
+          console.error('[ERROR] Не удалось записать данные в файл:', writeError.message);
+          // Сохраняем в память
+          memoryStorage[userId] = defaultData;
+        }
+        return defaultData;
+      }
+      
+      // Копируем данные в память для резервного доступа
+      memoryStorage[userId] = usersData[userId];
+      return usersData[userId];
+    } catch (readError) {
+      console.error('[ERROR] Не удалось прочитать данные из файла:', readError.message);
+      // Если файл недоступен, используем данные из памяти
+      if (!memoryStorage[userId]) {
+        memoryStorage[userId] = defaultData;
+      }
+      return memoryStorage[userId];
+    }
   } catch (error) {
-    console.error('Ошибка при получении данных пользователя:', error);
-    // Возвращаем стандартные данные в случае ошибки
+    console.error('[ERROR] Критическая ошибка при получении данных пользователя:', error);
+    // Возвращаем новые стандартные данные в случае критической ошибки
     return {
       userId: userId,
       plan: 'FREE',
@@ -126,33 +163,47 @@ function saveUserData(userId, data) {
   try {
     console.log(`[DEBUG] Сохранение данных для пользователя ${userId}: plan=${data.plan}`);
     
-    // Читаем данные всех пользователей
-    const usersData = JSON.parse(fs.readFileSync(USERS_DATA_FILE, 'utf8'));
-    
-    // Обновляем данные конкретного пользователя
-    // Используем деструктуризацию для создания нового объекта с сохранением существующих данных
-    usersData[userId] = { 
-      ...usersData[userId] || {}, 
+    // Объединяем новые данные с существующими
+    const updatedData = { 
+      ...(memoryStorage[userId] || {}), 
       ...data,
       // Явно указываем важные поля, чтобы убедиться, что они сохранятся
       plan: data.plan
     };
     
-    console.log(`[DEBUG] Данные пользователя ${userId} перед сохранением: ${JSON.stringify(usersData[userId])}`);
+    // Сохраняем в память в любом случае
+    memoryStorage[userId] = updatedData;
     
-    // Сохраняем обновленные данные в файл
-    fs.writeFileSync(USERS_DATA_FILE, JSON.stringify(usersData, null, 2), 'utf8');
-    
-    // Проверяем, что данные были сохранены
-    const verifyData = JSON.parse(fs.readFileSync(USERS_DATA_FILE, 'utf8'))[userId];
-    if (verifyData.plan !== data.plan) {
-      console.error(`[ERROR] Данные не были корректно сохранены. Ожидалось plan=${data.plan}, получено plan=${verifyData.plan}`);
+    // Пытаемся сохранить в файл
+    try {
+      // Читаем данные всех пользователей
+      const usersData = JSON.parse(fs.readFileSync(USERS_DATA_FILE, 'utf8'));
+      
+      // Обновляем данные конкретного пользователя
+      usersData[userId] = updatedData;
+      console.log(`[DEBUG] Данные пользователя ${userId} перед сохранением: ${JSON.stringify(usersData[userId]).substring(0, 200)}`);
+      
+      // Сохраняем обновленные данные в файл
+      fs.writeFileSync(USERS_DATA_FILE, JSON.stringify(usersData, null, 2), 'utf8');
+      
+      try {
+        // Проверяем, что данные были сохранены
+        const verifyData = JSON.parse(fs.readFileSync(USERS_DATA_FILE, 'utf8'))[userId];
+        if (verifyData && verifyData.plan !== data.plan) {
+          console.error(`[ERROR] Данные не были корректно сохранены. Ожидалось plan=${data.plan}, получено plan=${verifyData.plan}`);
+        }
+      } catch (verifyError) {
+        console.error(`[ERROR] Не удалось проверить сохраненные данные:`, verifyError.message);
+      }
+    } catch (fileError) {
+      console.error(`[ERROR] Не удалось сохранить данные в файл:`, fileError.message);
+      console.log(`[INFO] Данные сохранены только в памяти для пользователя ${userId}`);
     }
     
-    return usersData[userId];
+    return memoryStorage[userId];
   } catch (error) {
-    console.error(`[ERROR] Ошибка при сохранении данных пользователя ${userId}:`, error);
-    return null;
+    console.error(`[ERROR] Критическая ошибка при сохранении данных пользователя ${userId}:`, error);
+    return data; // Возвращаем хотя бы переданные данные
   }
 }
 
