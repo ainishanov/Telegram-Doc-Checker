@@ -8,6 +8,7 @@ const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const docxParser = require('docx-parser');
 const rtfParser = require('rtf-parser');
+const cheerio = require('cheerio');
 
 /**
  * Загрузка файла из Telegram
@@ -220,6 +221,38 @@ async function extractTextFromRtf(filePath) {
 }
 
 /**
+ * Извлечение текста из HTML документа
+ * @param {string} filePath - Путь к HTML файлу
+ * @returns {Promise<string>} - Извлеченный текст
+ */
+async function extractTextFromHtml(filePath) {
+  try {
+    console.log(`Извлечение текста из HTML: ${filePath}`);
+    
+    // Читаем HTML файл
+    const htmlContent = fs.readFileSync(filePath, 'utf8');
+    
+    // Используем cheerio для извлечения текста
+    const $ = cheerio.load(htmlContent);
+    
+    // Удаляем скрипты, стили и комментарии
+    $('script').remove();
+    $('style').remove();
+    $('head').remove();
+    $('noscript').remove();
+    
+    // Получаем текст из body
+    const text = $('body').text().replace(/\s+/g, ' ').trim();
+    
+    console.log(`Текст из HTML извлечен, размер: ${text.length} символов`);
+    return text;
+  } catch (error) {
+    console.error('Ошибка при извлечении текста из HTML:', error);
+    return null;
+  }
+}
+
+/**
  * Извлечение текста из документа
  * @param {string} filePath - Путь к файлу
  * @returns {Promise<string>} - Текст из документа
@@ -244,6 +277,10 @@ async function extractTextFromDocument(filePath) {
         break;
       case '.rtf':
         text = await extractTextFromRtf(filePath);
+        break;
+      case '.html':
+      case '.htm':
+        text = await extractTextFromHtml(filePath);
         break;
       case '.txt':
         console.log(`Чтение текстового файла: ${filePath}`);

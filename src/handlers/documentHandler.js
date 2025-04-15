@@ -48,11 +48,11 @@ async function handleDocument(bot, msg, options = {}) {
   const limitCheck = canMakeRequest(userId);
   
   // Проверяем поддерживаемые форматы
-  const supportedFormats = ['.txt', '.pdf', '.doc', '.docx', '.rtf'];
+  const supportedFormats = ['.txt', '.pdf', '.doc', '.docx', '.rtf', '.html', '.htm'];
   if (!supportedFormats.includes(fileExt)) {
     bot.sendMessage(
       chatId,
-      `Формат файла "${fileExt}" не поддерживается. Пожалуйста, отправьте документ в одном из следующих форматов: TXT, PDF, DOC, DOCX, RTF.`
+      `Формат файла "${fileExt}" не поддерживается. Пожалуйста, отправьте документ в одном из следующих форматов: TXT, PDF, DOC, DOCX, RTF, HTML.`
     );
     return;
   }
