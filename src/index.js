@@ -148,30 +148,36 @@ async function startBot() {
     app.listen(port, () => {
       console.log(`Webhook сервер запущен на порту ${port}`);
     });
-  } else {
-    // Режим локальной разработки без polling
-    console.log('⚠️ ВНИМАНИЕ: Бот настроен только для работы на Render.');
-    console.log('Локальный запуск в режиме polling отключен во избежание конфликтов с серверной версией.');
-    console.log('Чтобы запустить бот локально с polling, измените условия в функции startBot()');
-    console.log('или установите переменную окружения NODE_ENV=development и раскомментируйте код ниже.');
+  } else if (process.env.NODE_ENV === 'development') {
+    // Режим локальной разработки с polling
+    console.log('Запуск бота в режиме polling для локальной разработки');
     
-    // Создаем бота, но не включаем polling
-    bot = new TelegramBot(config.telegramToken, { polling: false });
-    
-    // Раскомментируйте код ниже, чтобы включить локальный polling для тестирования:
-    /*
     // Сначала отключаем webhook
     try {
+      bot = new TelegramBot(config.telegramToken, { polling: false });
       await bot.deleteWebHook({ drop_pending_updates: true });
       console.log('Вебхук отключен для режима поллинга');
       
       // Затем запускаем polling
-      bot.startPolling();
+      bot = new TelegramBot(config.telegramToken, { 
+        polling: true,
+        polling_options: {
+          timeout: 10 // Уменьшаем timeout для более быстрого реагирования
+        }
+      });
       console.log('Бот запущен в режиме polling для локальной разработки');
     } catch (error) {
       console.error('Ошибка при настройке режима polling:', error);
+      process.exit(1);
     }
-    */
+  } else {
+    // Режим локальной разработки без polling
+    console.log('⚠️ ВНИМАНИЕ: Бот настроен только для работы на Render.');
+    console.log('Локальный запуск в режиме polling отключен во избежание конфликтов с серверной версией.');
+    console.log('Чтобы запустить бот локально с polling, установите переменную окружения NODE_ENV=development');
+    
+    // Создаем бота, но не включаем polling
+    bot = new TelegramBot(config.telegramToken, { polling: false });
   }
   
   // Устанавливаем постоянное меню
