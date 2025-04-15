@@ -152,23 +152,30 @@ async function startBot() {
     // Режим локальной разработки с polling
     console.log('Запуск бота в режиме polling для локальной разработки');
     
-    // Сначала отключаем webhook
     try {
+      // Отключаем webhook перед запуском polling
       bot = new TelegramBot(config.telegramToken, { polling: false });
       await bot.deleteWebHook({ drop_pending_updates: true });
       console.log('Вебхук отключен для режима поллинга');
       
-      // Затем запускаем polling
+      // Запускаем новый экземпляр бота с polling
       bot = new TelegramBot(config.telegramToken, { 
         polling: true,
         polling_options: {
-          timeout: 10 // Уменьшаем timeout для более быстрого реагирования
+          timeout: 30, // Увеличиваем timeout для снижения нагрузки на API
+          limit: 100
         }
       });
       console.log('Бот запущен в режиме polling для локальной разработки');
     } catch (error) {
-      console.error('Ошибка при настройке режима polling:', error);
-      process.exit(1);
+      if (error.code === 'ETELEGRAM' && error.response && error.response.statusCode === 409) {
+        console.error('Ошибка 409 Conflict: другой экземпляр бота уже запущен');
+        console.log('Создаем бота без polling для избежания конфликтов');
+        bot = new TelegramBot(config.telegramToken, { polling: false });
+      } else {
+        console.error('Ошибка при настройке режима polling:', error);
+        process.exit(1);
+      }
     }
   } else {
     // Режим локальной разработки без polling

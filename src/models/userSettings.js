@@ -27,8 +27,7 @@ function getUserSettings(userId) {
     if (!settings[userId]) {
       // Если настроек нет, создаем дефолтные
       settings[userId] = {
-        prompt: config.defaultPrompt,
-        model: config.openaiModel
+        prompt: config.defaultPrompt
       };
       saveUserSettings(settings);
     }
@@ -37,8 +36,7 @@ function getUserSettings(userId) {
   } catch (error) {
     console.error('Ошибка при чтении настроек:', error);
     return {
-      prompt: config.defaultPrompt,
-      model: config.openaiModel
+      prompt: config.defaultPrompt
     };
   }
 }
@@ -55,8 +53,7 @@ function updateUserSettings(userId, newSettings) {
     // Создаем настройки для пользователя, если их нет
     if (!settings[userId]) {
       settings[userId] = {
-        prompt: config.defaultPrompt,
-        model: config.openaiModel
+        prompt: config.defaultPrompt
       };
     }
     
