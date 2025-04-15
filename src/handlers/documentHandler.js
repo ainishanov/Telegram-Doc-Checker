@@ -4,7 +4,7 @@ const { getUserSettings } = require('../models/userSettings');
 const { canUserMakeRequest, registerRequestUsage, getAllPlans, PLANS } = require('../models/userLimits');
 const path = require('path');
 const axios = require('axios');
-const config = require('../config');
+const config = require('../config/config');
 
 /**
  * Обработчик документов
