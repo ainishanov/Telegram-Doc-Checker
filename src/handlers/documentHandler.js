@@ -418,6 +418,11 @@ function splitTextIntoParts(text, maxPartLength) {
 
 // Добавляем обработчик выбора стороны
 async function handlePartySelection(bot, query) {
+  // Сразу отвечаем на callback query, чтобы Telegram не считал запрос просроченным
+  await bot.answerCallbackQuery(query.id, {
+    text: "Начинаю анализ договора..."
+  }).catch(err => console.error('Ошибка при ответе на callback:', err.message));
+  
   const userId = query.from.id.toString();
   const chatId = query.message.chat.id;
   const data = query.data;
@@ -541,9 +546,6 @@ async function handlePartySelection(bot, query) {
 
     // Отправляем третье сообщение с призывом к действию
     await bot.sendMessage(chatId, '⬆️ *Вы можете переслать сообщение выше контрагенту для обсуждения условий договора*', { parse_mode: 'Markdown' });
-
-    // Подтверждаем обработку callback query
-    await bot.answerCallbackQuery(query.id);
 
     // Очищаем временное хранилище
     delete global.tempStorage[userId];
