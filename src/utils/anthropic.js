@@ -1,5 +1,5 @@
 const { Anthropic } = require('@anthropic-ai/sdk');
-const config = require('../config');
+const config = require('../config/config');
 
 class AnthropicService {
   constructor() {
@@ -8,91 +8,71 @@ class AnthropicService {
     });
   }
 
-  async analyzeDocument(text) {
+  /**
+   * Анализирует текст документа
+   * @param {string} text - Текст документа для анализа
+   * @param {string} role - Роль пользователя в договоре (заказчик, исполнитель и т.д.)
+   * @param {string} name - Название компании/ИП пользователя
+   * @returns {Promise<Object>} - Результат анализа
+   */
+  async analyzeDocument(text, role, name) {
+    console.log(`Отправка документа на анализ в Anthropic (${text.length} символов)`);
+    
+    // Ограничиваем размер текста для предотвращения превышения контекста
+    // Claude 3 может обрабатывать до 200K токенов
+    if (text.length > 150000) {
+      console.log(`Документ слишком большой (${text.length} символов), ограничиваем до 150000 символов`);
+      text = text.substring(0, 150000) + '... [текст сокращен из-за ограничений размера]';
+    }
+
+    // Формируем системный промпт для Claude
+    const systemPrompt = `Ты - опытный юрист, специализирующийся на анализе договоров. 
+Твоя задача - проверить договор на наличие рисков, недостатков и подводных камней.
+
+Проанализируй договор с точки зрения ${role} (${name}).
+
+В своем анализе учитывай следующее:
+1. Интересы ${role} (${name})
+2. Юридические риски для ${role}
+3. Финансовые риски для ${role}
+4. Несправедливые условия договора
+5. Отсутствующие важные пункты
+6. Защиту интересов ${role}
+
+Твой ответ должен быть структурирован следующим образом:
+1. **Краткое описание документа** - что это за документ, стороны, основные положения
+2. **Роль пользователя** - кем является ${role} (${name}) в данном договоре
+3. **Критические ошибки и риски** - самые опасные пункты договора для ${role}
+4. **Потенциальные риски** - возможные проблемы для ${role}
+5. **Преимущества договора** - выгодные условия для ${role}
+6. **Отсутствующие важные пункты** - что следовало бы добавить для защиты ${role}
+7. **Рекомендации по улучшению** - как сделать договор безопаснее для ${role}
+8. **Общее заключение** - общая оценка договора с точки зрения безопасности для ${role}`;
+
     try {
-      // Используем больший лимит для Claude с контекстом 200K
-      if (text.length > 150000) {
-        console.log(`Документ слишком большой (${text.length} символов), ограничиваем до 150000 символов`);
-        text = text.substring(0, 150000) + '... [текст сокращен из-за ограничений размера]';
-      }
-
-      console.log('Отправка запроса на анализ документа в Anthropic Claude...');
-
       const response = await this.client.messages.create({
         model: "claude-3-opus-20240229",
         max_tokens: 4000,
-        system: "Вы - опытный юрист-эксперт по анализу договоров. Ваша задача - проанализировать предоставленный договор и вернуть структурированный JSON-ответ со следующими полями:\n\n" +
-                "1. party1 и party2 - объекты с информацией о сторонах договора:\n" +
-                "   - name: название/ФИО стороны\n" +
-                "   - role: роль в договоре (Заказчик, Исполнитель, etc.)\n\n" +
-                "2. mainTerms - объект с основными условиями договора:\n" +
-                "   - subject: предмет договора (подробное описание)\n" +
-                "   - price: условия оплаты и стоимость\n" +
-                "   - duration: срок действия договора\n" +
-                "   - responsibilities: основные обязанности сторон\n\n" +
-                "3. analysis - объект с анализом для каждой стороны (party1Analysis и party2Analysis):\n" +
-                "   - criticalErrors: массив критических ошибок/упущений в договоре\n" +
-                "   - risks: массив рисков с указанием пункта договора и описанием последствий\n" +
-                "   - improvements: массив необходимых улучшений с конкретными формулировками\n" +
-                "   - advantages: массив преимуществ для этой стороны\n" +
-                "   - disadvantages: массив недостатков для этой стороны\n\n" +
-                "4. conclusion - объект с общим заключением:\n" +
-                "   - contractQuality: оценка качества составления (высокий/средний/низкий)\n" +
-                "   - balanceOfPower: какая сторона в более выгодном положении\n" +
-                "   - mainProblems: основные проблемы договора\n" +
-                "   - recommendedActions: рекомендуемые действия\n\n" +
-                "Анализ должен быть максимально конкретным, с указанием номеров пунктов договора и предложением точных формулировок для улучшения.",
+        system: systemPrompt,
         messages: [
-          {
+          { 
             role: "user",
-            content: `Пожалуйста, проанализируйте следующий договор и верните результат в формате JSON:\n\n${text}`
+            content: `Вот текст договора для анализа:\n\n${text}`
           }
         ],
       });
 
-      // Парсим JSON из ответа
-      const analysisResult = JSON.parse(response.content[0].text);
-      
-      // Проверяем наличие всех необходимых полей
-      if (!analysisResult.party1 || !analysisResult.party2) {
-        throw new Error('Не удалось определить стороны договора');
-      }
-
       return {
-        party1: analysisResult.party1,
-        party2: analysisResult.party2,
-        mainTerms: analysisResult.mainTerms || {
-          subject: 'Не удалось определить предмет договора',
-          price: 'Не удалось определить условия оплаты',
-          duration: 'Не удалось определить срок действия',
-          responsibilities: 'Не удалось определить обязанности сторон'
-        },
-        analysis: analysisResult.analysis || {
-          party1Analysis: {
-            criticalErrors: [],
-            risks: [],
-            improvements: [],
-            advantages: [],
-            disadvantages: []
-          },
-          party2Analysis: {
-            criticalErrors: [],
-            risks: [],
-            improvements: [],
-            advantages: [],
-            disadvantages: []
-          }
-        },
-        conclusion: analysisResult.conclusion || {
-          contractQuality: 'средний',
-          balanceOfPower: 'не определено',
-          mainProblems: [],
-          recommendedActions: []
+        analysis: response.content[0].text,
+        usage: {
+          prompt_tokens: 0, // Claude не возвращает точное количество токенов 
+          completion_tokens: 0, // Но можно будет добавить оценку, если нужно
+          total_tokens: 0
         }
       };
     } catch (error) {
       console.error('Ошибка при анализе документа через Anthropic:', error);
-      throw new Error('Не удалось выполнить анализ документа. Пожалуйста, попробуйте позже.');
+      throw error;
     }
   }
 }

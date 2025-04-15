@@ -1,7 +1,7 @@
 {
   "name": "telegram-doc-checker",
   "version": "1.0.0",
-  "description": "Telegram bot for checking documents using ChatGPT",
+  "description": "Telegram bot for checking documents using AI",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

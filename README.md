@@ -14,7 +14,7 @@
 
 - Node.js
 - Telegram Bot API
-- OpenAI API (GPT-4)
+- Anthropic Claude API
 - Обработка документов (PDF, DOCX)
 
 ## Установка и настройка
@@ -33,7 +33,7 @@
 3. Создать файл `.env` на основе `.env.example`:
    ```
    TELEGRAM_BOT_TOKEN=your_bot_token
-   OPENAI_API_KEY=your_openai_api_key
+   ANTHROPIC_API_KEY=your_anthropic_api_key
    ```
 
 4. Запустить бот:
@@ -66,7 +66,7 @@ Ainur Nishanov
 ## Возможности
 
 - Проверка документов через пересылку в бота
-- Настройка промпта для ChatGPT
+- Настройка промпта для анализа с помощью ИИ
 - Гибкая настройка параметров проверки
 - Поддержка форматов PDF, DOC, DOCX, RTF, TXT
 - Анализ договоров и юридических документов
@@ -143,8 +143,7 @@ app.post('/robokassa/result', (req, res) => {
    - Start Command: `node src/index.js`
 5. Добавьте переменные окружения:
    - `TELEGRAM_BOT_TOKEN`
-   - `OPENAI_API_KEY`
-   - `OPENAI_MODEL`: gpt-4-turbo
+   - `ANTHROPIC_API_KEY`
    - `NODE_ENV`: production
    - `APP_URL`: URL вашего сервиса (будет доступен после деплоя)
 6. Нажмите "Create Web Service"
@@ -158,16 +157,11 @@ app.post('/robokassa/result', (req, res) => {
 4. Задайте переменные окружения:
    ```
    heroku config:set TELEGRAM_BOT_TOKEN=your_token
-   heroku config:set OPENAI_API_KEY=your_key
-   heroku config:set OPENAI_MODEL=gpt-4-turbo
+   heroku config:set ANTHROPIC_API_KEY=your_key
    heroku config:set NODE_ENV=production
    ```
 5. Деплой: `git push heroku main`
 6. Получите URL: `heroku info -s | grep web_url`
-7. Установите URL для WebHook:
-   ```
-   heroku config:set APP_URL=your_app_url
-   ```
 
 ### Вариант 3: VPS/VDS 
 
@@ -193,5 +187,4 @@ app.post('/robokassa/result', (req, res) => {
 - `/help` - Показать список команд
 - `/settings` - Настройка параметров проверки и промпта
 - `/resetprompt` - Сбросить промпт на стандартный
-- `/showprompt` - Показать текущий промпт #   t e l e g r a m - d o c - c h e c k e r  
- 
+- `/showprompt` - Показать текущий промпт
