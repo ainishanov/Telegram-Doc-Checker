@@ -79,14 +79,23 @@ async function startBot() {
   bot = new TelegramBot(config.telegramToken);
   
   // Определяем URL для webhook на Render
-  const renderWebhookUrl = `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'localhost'}/webhook/${config.telegramToken}`;
+  // Получаем имя сервиса из Render
+  const serviceName = process.env.RENDER_SERVICE_NAME || 'telegram-doc-checker';
+  // Формируем URL с использованием имени сервиса, если RENDER_EXTERNAL_HOSTNAME не задан
+  const renderWebhookUrl = process.env.RENDER_EXTERNAL_HOSTNAME 
+    ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME}/webhook/${config.telegramToken}`
+    : `https://${serviceName}.onrender.com/webhook/${config.telegramToken}`;
   
   try {
+    console.log('Попытка установки webhook по адресу:', renderWebhookUrl);
     await bot.setWebHook(renderWebhookUrl);
     console.log('Webhook успешно установлен:', renderWebhookUrl);
   } catch (error) {
     console.error('Ошибка при установке webhook:', error);
-    process.exit(1);
+    console.error('Детали ошибки:', error.message);
+    
+    // Не завершаем процесс, попробуем продолжить работу
+    console.log('Продолжение работы несмотря на ошибку webhook...');
   }
   
   // Создаем Express приложение для обработки webhook
