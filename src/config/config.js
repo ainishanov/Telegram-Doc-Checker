@@ -10,6 +10,9 @@ const config = {
   // Anthropic
   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
   
+  // Администраторы бота (массив ID)
+  adminIds: process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [],
+  
   // Настройки по умолчанию
   defaultPrompt: `Ты - опытный юрист, специализирующийся на анализе договоров. 
 Твоя задача - проверить договор на наличие рисков, недостатков и подводных камней.

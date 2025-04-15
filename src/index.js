@@ -143,9 +143,30 @@ async function startBot() {
     
     // Обработчик webhook
     app.post(`/webhook/${config.telegramToken}`, (req, res) => {
-      console.log('Получен webhook запрос от Telegram:', JSON.stringify(req.body).slice(0, 200) + '...');
-      bot.handleUpdate(req.body);
-      res.sendStatus(200);
+      try {
+        console.log('Получен webhook запрос:', JSON.stringify(req.body).substring(0, 200));
+        
+        // Проверяем, содержит ли запрос правильный формат данных
+        if (!req.body || (!req.body.message && !req.body.callback_query)) {
+          console.warn('Получен webhook с неверным форматом данных:', JSON.stringify(req.body));
+          return res.sendStatus(200); // Всегда возвращаем 200, чтобы Telegram не пытался повторно отправить
+        }
+        
+        // Извлекаем информацию о пользователе
+        const user = req.body.message ? req.body.message.from : 
+                     req.body.callback_query ? req.body.callback_query.from : null;
+        
+        if (user) {
+          console.log(`Запрос от пользователя: ${user.first_name} ${user.last_name || ''} (${user.id})`);
+        }
+        
+        // Передаем обновление боту для обработки
+        bot.handleUpdate(req.body);
+        res.sendStatus(200);
+      } catch (error) {
+        console.error('Ошибка при обработке webhook запроса:', error);
+        res.sendStatus(200); // Всегда отвечаем 200, чтобы Telegram не повторял запрос
+      }
     });
 
     // Простой ответ для проверки работы сервиса
