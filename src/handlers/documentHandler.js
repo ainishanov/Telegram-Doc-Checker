@@ -336,8 +336,7 @@ async function handleDocument(bot, msg, options = {}) {
       `*Определены стороны договора:*\n` +
       `1️⃣ ${analysis.party1.role}: *${analysis.party1.name}*\n` +
       `2️⃣ ${analysis.party2.role}: *${analysis.party2.name}*\n\n` +
-      `Выберите, какой стороной договора вы являетесь:${limitInfo}\n\n` +
-      `❗️ _Обратите внимание: данный анализ не является юридической консультацией и представляет собой автоматизированный информационный обзор документа._`;
+      `Выберите, какой стороной договора вы являетесь:${limitInfo}`;
 
     // Отправляем результат
     await bot.editMessageText(message, {
@@ -482,8 +481,6 @@ async function handlePartySelection(bot, query) {
       termsMessage += `${analysis.mainTerms.special}\n\n`;
     }
 
-    termsMessage += `❗️ _Данная информация носит справочный характер и не является юридическим заключением._`;
-
     // Отправляем первое сообщение с условиями
     await bot.sendMessage(chatId, termsMessage, { parse_mode: 'Markdown' });
 
@@ -538,8 +535,6 @@ async function handlePartySelection(bot, query) {
         analysisMessage += `${index + 1}. ${action}\n`;
       });
     }
-
-    analysisMessage += `\n❗️ _Обратите внимание: все содержащиеся здесь наблюдения не являются юридической консультацией и предоставляются исключительно в информационных целях. Для получения квалифицированной юридической помощи обратитесь к лицензированным специалистам._`;
 
     // Отправляем второе сообщение с анализом
     await bot.sendMessage(chatId, analysisMessage, { parse_mode: 'Markdown' });
