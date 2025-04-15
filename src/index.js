@@ -108,30 +108,70 @@ async function startBot() {
     app.listen(port, () => {
       console.log(`Webhook сервер запущен на порту ${port}`);
     });
-  } else {
-    // Polling режим для локальной разработки
-    console.log('Запуск бота в режиме polling (локальная разработка)');
+  } else if (process.env.RENDER) {
+    // Для Render будем использовать webhook в любом случае
+    console.log('Запуск бота в режиме webhook на Render');
     
-    // Используем clean=true для удаления всех ожидающих обновлений
-    // и отключения вебхука перед запуском поллинга
-    bot = new TelegramBot(config.telegramToken, { 
-      polling: {
-        interval: 300,
-        params: {
-          timeout: 10
-        },
-        autoStart: true
-      },
-      filepath: false
+    bot = new TelegramBot(config.telegramToken);
+    
+    // Определяем URL для webhook на Render
+    const renderWebhookUrl = `https://${process.env.RENDER_EXTERNAL_HOSTNAME}/webhook/${config.telegramToken}`;
+    
+    try {
+      await bot.setWebHook(renderWebhookUrl);
+      console.log('Webhook успешно установлен для Render:', renderWebhookUrl);
+    } catch (error) {
+      console.error('Ошибка при установке webhook для Render:', error);
+      process.exit(1);
+    }
+    
+    // Создаем Express приложение для обработки webhook
+    const express = require('express');
+    const app = express();
+    
+    // Парсим тело запроса как JSON
+    app.use(express.json());
+    
+    // Обработчик webhook
+    app.post(`/webhook/${config.telegramToken}`, (req, res) => {
+      bot.handleUpdate(req.body);
+      res.sendStatus(200);
+    });
+
+    // Простой ответ для проверки работы сервиса
+    app.get('/', (req, res) => {
+      res.send('Бот активен и работает в режиме webhook');
     });
     
-    // Отключение вебхука для режима поллинга
+    // Запускаем сервер
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+      console.log(`Webhook сервер запущен на порту ${port}`);
+    });
+  } else {
+    // Режим локальной разработки без polling
+    console.log('⚠️ ВНИМАНИЕ: Бот настроен только для работы на Render.');
+    console.log('Локальный запуск в режиме polling отключен во избежание конфликтов с серверной версией.');
+    console.log('Чтобы запустить бот локально с polling, измените условия в функции startBot()');
+    console.log('или установите переменную окружения NODE_ENV=development и раскомментируйте код ниже.');
+    
+    // Создаем бота, но не включаем polling
+    bot = new TelegramBot(config.telegramToken, { polling: false });
+    
+    // Раскомментируйте код ниже, чтобы включить локальный polling для тестирования:
+    /*
+    // Сначала отключаем webhook
     try {
       await bot.deleteWebHook({ drop_pending_updates: true });
       console.log('Вебхук отключен для режима поллинга');
+      
+      // Затем запускаем polling
+      bot.startPolling();
+      console.log('Бот запущен в режиме polling для локальной разработки');
     } catch (error) {
-      console.error('Ошибка при отключении вебхука:', error);
+      console.error('Ошибка при настройке режима polling:', error);
     }
+    */
   }
   
   // Устанавливаем постоянное меню
