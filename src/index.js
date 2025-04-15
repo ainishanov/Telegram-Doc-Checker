@@ -88,11 +88,37 @@ async function startBot() {
   
   try {
     console.log('Попытка установки webhook по адресу:', renderWebhookUrl);
-    await bot.setWebHook(renderWebhookUrl);
+    await bot.setWebHook(renderWebhookUrl, {
+      max_connections: 40,
+      drop_pending_updates: true, // Отбрасываем накопившиеся обновления
+      allowed_updates: ['message', 'callback_query'] // Принимаем только сообщения и callback_query
+    });
     console.log('Webhook успешно установлен:', renderWebhookUrl);
+    
+    // Проверим информацию о webhook
+    try {
+      const webhookInfo = await bot.getWebHookInfo();
+      console.log('Информация о webhook:', JSON.stringify(webhookInfo));
+    } catch (infoError) {
+      console.error('Не удалось получить информацию о webhook:', infoError.message);
+    }
   } catch (error) {
     console.error('Ошибка при установке webhook:', error);
     console.error('Детали ошибки:', error.message);
+    
+    // Пробуем еще раз с задержкой
+    console.log('Повторная попытка установки webhook через 5 секунд...');
+    setTimeout(async () => {
+      try {
+        await bot.setWebHook(renderWebhookUrl, {
+          max_connections: 40,
+          drop_pending_updates: true
+        });
+        console.log('Webhook успешно установлен при повторной попытке:', renderWebhookUrl);
+      } catch (retryError) {
+        console.error('Ошибка при повторной установке webhook:', retryError.message);
+      }
+    }, 5000);
     
     // Не завершаем процесс, попробуем продолжить работу
     console.log('Продолжение работы несмотря на ошибку webhook...');
@@ -109,8 +135,15 @@ async function startBot() {
     // Парсим тело запроса как JSON
     app.use(express.json());
     
+    // Добавим логирование запросов
+    app.use((req, res, next) => {
+      console.log(`Получен ${req.method} запрос на ${req.path}`);
+      next();
+    });
+    
     // Обработчик webhook
     app.post(`/webhook/${config.telegramToken}`, (req, res) => {
+      console.log('Получен webhook запрос от Telegram:', JSON.stringify(req.body).slice(0, 200) + '...');
       bot.handleUpdate(req.body);
       res.sendStatus(200);
     });
@@ -118,6 +151,15 @@ async function startBot() {
     // Простой ответ для проверки работы сервиса
     app.get('/', (req, res) => {
       res.send('Бот активен и работает в режиме webhook');
+    });
+    
+    // Добавим дополнительный маршрут для проверки
+    app.get('/status', (req, res) => {
+      res.json({
+        status: 'ok',
+        mode: 'webhook',
+        timestamp: new Date().toISOString()
+      });
     });
     
     // Запускаем сервер
