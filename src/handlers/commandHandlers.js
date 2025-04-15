@@ -122,41 +122,18 @@ const handleHelp = async (bot, msg) => {
  */
 const handleAbout = async (bot, msg) => {
   const chatId = msg.chat.id;
-  
-  // Подготавливаем информацию о компании
-  const companyInfoText = `
-*Информация о компании:*
 
-*${COMPANY_INFO.name}*
-ИНН: ${COMPANY_INFO.inn}
-ОГРНИП: ${COMPANY_INFO.ogrnip}
-
-*Контактные данные:*
-Email: ${COMPANY_INFO.contacts.email}
-
-*Пользовательское соглашение:*
-Используя данного бота, вы принимаете условия пользовательского соглашения.
-`;
-
-  // Сначала отправляем информацию о компании
-  await bot.sendMessage(chatId, companyInfoText, { parse_mode: 'Markdown' });
-  
-  // Затем отправляем договор оферты с кнопкой для просмотра
-  const offerMessage = `
+  const aboutText = `
 *Договор оферты:*
 
-Перед использованием бота и оплатой услуг, пожалуйста, ознакомьтесь с договором оферты.
+Используя данного бота, вы соглашаетесь с условиями публичной оферты.
+
+[Ознакомиться с договором оферты](${COMPANY_INFO.offerUrl})
 `;
 
-  const offerButton = {
-    inline_keyboard: [
-      [{ text: 'Просмотреть договор оферты', url: COMPANY_INFO.offerUrl }]
-    ]
-  };
-  
-  await bot.sendMessage(chatId, offerMessage, { 
+  await bot.sendMessage(chatId, aboutText, {
     parse_mode: 'Markdown',
-    reply_markup: offerButton
+    disable_web_page_preview: false
   });
 };
 
