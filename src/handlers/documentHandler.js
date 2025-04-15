@@ -1,7 +1,7 @@
 const { downloadTelegramFile, extractTextFromDocument } = require('../utils/documentParser');
 const anthropicService = require('../utils/anthropic');
 const { getUserSettings } = require('../models/userSettings');
-const { canMakeRequest, registerRequest, getPlansInfo, PLANS } = require('../models/userLimits');
+const { canUserMakeRequest, registerRequestUsage, getAllPlans, PLANS } = require('../models/userLimits');
 const path = require('path');
 const axios = require('axios');
 const config = require('../config');
@@ -30,10 +30,10 @@ async function handleDocument(bot, msg, options = {}) {
   const shouldForceContract = forceContract || hasForceKeyword || hasContractInName;
   
   // Проверяем возможность проверки документа (доступность лимитов)
-  const verificationCheck = canMakeRequest(userId);
+  const verificationCheck = canUserMakeRequest(userId);
   
   if (!verificationCheck.allowed) {
-    if (verificationCheck.reason === 'payment_required') {
+    if (verificationCheck.reason === 'subscription_inactive') {
       // Требуется оплата
       bot.sendMessage(
         chatId,
@@ -53,7 +53,7 @@ async function handleDocument(bot, msg, options = {}) {
   }
   
   // Проверку лимитов для полного анализа проведем после определения типа документа
-  const limitCheck = canMakeRequest(userId);
+  const limitCheck = canUserMakeRequest(userId);
   
   // Проверяем поддерживаемые форматы
   const supportedFormats = ['.txt', '.pdf', '.doc', '.docx', '.rtf', '.html', '.htm'];
@@ -216,9 +216,9 @@ async function handleDocument(bot, msg, options = {}) {
     if (!limitCheck.allowed) {
       let message = '';
       
-      if (limitCheck.reason === 'limit_exceeded') {
-        const plansInfo = getPlansInfo();
-        const basicPlan = plansInfo.BASIC;
+      if (limitCheck.reason === 'limit_reached') {
+        const plansInfo = getAllPlans();
+        const basicPlan = plansInfo.find(plan => plan.id === 'BASIC');
         
         message = `
 ⚠️ *Достигнут лимит бесплатных запросов*
@@ -233,7 +233,7 @@ async function handleDocument(bot, msg, options = {}) {
 
 Для перехода на платный тариф используйте команду /upgrade
 `;
-      } else if (limitCheck.reason === 'payment_required') {
+      } else if (limitCheck.reason === 'subscription_inactive') {
         message = '⚠️ *Требуется оплата*\n\nДокумент определен как договор, но ваш тариф еще не оплачен. Используйте команду /payment для оплаты или /downgrade для возврата к бесплатному тарифу.';
       }
       
@@ -291,10 +291,10 @@ async function handleDocument(bot, msg, options = {}) {
     console.log('Анализ завершен, формирую ответ...');
     
     // Регистрируем использование запроса
-    registerRequest(userId);
+    registerRequestUsage(userId);
     
     // Получаем обновленные данные о лимитах
-    const updatedLimits = canMakeRequest(userId);
+    const updatedLimits = canUserMakeRequest(userId);
     let limitInfo = '';
     
     if (updatedLimits.remainingRequests === 0) {
