@@ -74,118 +74,44 @@ global.tempStorage = {
 async function startBot() {
   let bot;
   
-  // Определяем режим работы бота
-  if (config.webhookUrl && process.env.NODE_ENV === 'production') {
-    // Webhook режим для production
-    console.log('Запуск бота в режиме webhook (production)');
-    
-    bot = new TelegramBot(config.telegramToken);
-    
-    // Настраиваем webhook
-    try {
-      await bot.setWebHook(config.webhookUrl);
-      console.log('Webhook успешно установлен:', config.webhookUrl);
-    } catch (error) {
-      console.error('Ошибка при установке webhook:', error);
-      process.exit(1);
-    }
-    
-    // Создаем Express приложение для обработки webhook
-    const express = require('express');
-    const app = express();
-    
-    // Парсим тело запроса как JSON
-    app.use(express.json());
-    
-    // Обработчик webhook
-    app.post(`/webhook/${config.telegramToken}`, (req, res) => {
-      bot.handleUpdate(req.body);
-      res.sendStatus(200);
-    });
-    
-    // Запускаем сервер
-    const port = process.env.PORT || 3000;
-    app.listen(port, () => {
-      console.log(`Webhook сервер запущен на порту ${port}`);
-    });
-  } else if (process.env.RENDER) {
-    // Для Render будем использовать webhook в любом случае
-    console.log('Запуск бота в режиме webhook на Render');
-    
-    bot = new TelegramBot(config.telegramToken);
-    
-    // Определяем URL для webhook на Render
-    const renderWebhookUrl = `https://${process.env.RENDER_EXTERNAL_HOSTNAME}/webhook/${config.telegramToken}`;
-    
-    try {
-      await bot.setWebHook(renderWebhookUrl);
-      console.log('Webhook успешно установлен для Render:', renderWebhookUrl);
-    } catch (error) {
-      console.error('Ошибка при установке webhook для Render:', error);
-      process.exit(1);
-    }
-    
-    // Создаем Express приложение для обработки webhook
-    const express = require('express');
-    const app = express();
-    
-    // Парсим тело запроса как JSON
-    app.use(express.json());
-    
-    // Обработчик webhook
-    app.post(`/webhook/${config.telegramToken}`, (req, res) => {
-      bot.handleUpdate(req.body);
-      res.sendStatus(200);
-    });
-
-    // Простой ответ для проверки работы сервиса
-    app.get('/', (req, res) => {
-      res.send('Бот активен и работает в режиме webhook');
-    });
-    
-    // Запускаем сервер
-    const port = process.env.PORT || 3000;
-    app.listen(port, () => {
-      console.log(`Webhook сервер запущен на порту ${port}`);
-    });
-  } else if (process.env.NODE_ENV === 'development') {
-    // Режим локальной разработки с polling
-    console.log('Запуск бота в режиме polling для локальной разработки');
-    
-    try {
-      // Отключаем webhook перед запуском polling
-      bot = new TelegramBot(config.telegramToken, { polling: false });
-      await bot.deleteWebHook({ drop_pending_updates: true });
-      console.log('Вебхук отключен для режима поллинга');
-      
-      // Запускаем новый экземпляр бота с polling
-      bot = new TelegramBot(config.telegramToken, { 
-        polling: true,
-        polling_options: {
-          timeout: 30, // Увеличиваем timeout для снижения нагрузки на API
-          limit: 100
-        }
-      });
-      console.log('Бот запущен в режиме polling для локальной разработки');
-    } catch (error) {
-      if (error.code === 'ETELEGRAM' && error.response && error.response.statusCode === 409) {
-        console.error('Ошибка 409 Conflict: другой экземпляр бота уже запущен');
-        console.log('Создаем бота без polling для избежания конфликтов');
-        bot = new TelegramBot(config.telegramToken, { polling: false });
-      } else {
-        console.error('Ошибка при настройке режима polling:', error);
-        process.exit(1);
-      }
-    }
-  } else {
-    // Режим локальной разработки без polling
-    console.log('⚠️ ВНИМАНИЕ: Бот настроен только для работы на Render.');
-    console.log('Локальный запуск в режиме polling отключен во избежание конфликтов с серверной версией.');
-    console.log('Чтобы запустить бот локально с polling, установите переменную окружения NODE_ENV=development');
-    
-    // Создаем бота, но не включаем polling
-    bot = new TelegramBot(config.telegramToken, { polling: false });
+  console.log('Запуск бота в режиме webhook на Render');
+  
+  bot = new TelegramBot(config.telegramToken);
+  
+  // Определяем URL для webhook на Render
+  const renderWebhookUrl = `https://${process.env.RENDER_EXTERNAL_HOSTNAME || 'localhost'}/webhook/${config.telegramToken}`;
+  
+  try {
+    await bot.setWebHook(renderWebhookUrl);
+    console.log('Webhook успешно установлен:', renderWebhookUrl);
+  } catch (error) {
+    console.error('Ошибка при установке webhook:', error);
+    process.exit(1);
   }
+  
+  // Создаем Express приложение для обработки webhook
+  const express = require('express');
+  const app = express();
+  
+  // Парсим тело запроса как JSON
+  app.use(express.json());
+  
+  // Обработчик webhook
+  app.post(`/webhook/${config.telegramToken}`, (req, res) => {
+    bot.handleUpdate(req.body);
+    res.sendStatus(200);
+  });
+
+  // Простой ответ для проверки работы сервиса
+  app.get('/', (req, res) => {
+    res.send('Бот активен и работает в режиме webhook');
+  });
+  
+  // Запускаем сервер
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`Webhook сервер запущен на порту ${port}`);
+  });
   
   // Устанавливаем постоянное меню
   const menuButtons = setupPermanentMenu(bot);
