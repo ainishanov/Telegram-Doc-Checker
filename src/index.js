@@ -161,7 +161,7 @@ async function startBot() {
         }
         
         // Передаем обновление боту для обработки
-        bot.handleUpdate(req.body);
+        bot.processUpdate(req.body);
         res.sendStatus(200);
       } catch (error) {
         console.error('Ошибка при обработке webhook запроса:', error);
