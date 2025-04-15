@@ -13,7 +13,8 @@
 ## Технологии
 
 - Node.js
-- Telegram Bot API
+- Telegram Bot API (webhook режим для продакшена)
+- Express.js для обработки webhook запросов
 - Anthropic Claude API
 - Обработка документов (PDF, DOCX)
 
