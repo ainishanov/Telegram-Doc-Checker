@@ -4,9 +4,13 @@ services:
     env: node
     root: ./
     buildCommand: npm install
-    startCommand: node src/index.js
+    startCommand: npm run check-deps && node src/index.js
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: ANTHROPIC_API_KEY
-        sync: false 
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: RENDER
+        value: true 
