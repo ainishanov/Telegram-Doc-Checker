@@ -4,10 +4,17 @@ const config = require('../config/config');
 
 // Класс для работы с API ЮКассы
 class YooKassaAPI {
-  constructor(shopId, secretKey) {
+  constructor(shopId, secretKey, isTestMode = false) {
     this.shopId = shopId;
     this.secretKey = secretKey;
+    this.isTestMode = isTestMode;
     this.baseURL = 'https://api.yookassa.ru/v3';
+    
+    console.log('Инициализация API ЮКассы:');
+    console.log('- Shop ID:', this.shopId);
+    console.log('- Тестовый режим:', this.isTestMode ? 'Да' : 'Нет');
+    console.log('- Base URL:', this.baseURL);
+    
     this.axios = axios.create({
       baseURL: this.baseURL,
       auth: {
@@ -18,6 +25,42 @@ class YooKassaAPI {
         'Content-Type': 'application/json'
       }
     });
+    
+    // Добавляем перехватчик для логирования запросов
+    this.axios.interceptors.request.use(request => {
+      console.log('Исходящий запрос к API ЮКассы:');
+      console.log('- Метод:', request.method.toUpperCase());
+      console.log('- URL:', request.url);
+      console.log('- Заголовки:', JSON.stringify(request.headers));
+      if (request.data) {
+        console.log('- Данные:', JSON.stringify(request.data));
+      }
+      return request;
+    });
+    
+    // Добавляем перехватчик для логирования ответов
+    this.axios.interceptors.response.use(
+      response => {
+        console.log('Ответ от API ЮКассы:');
+        console.log('- Статус:', response.status);
+        console.log('- Данные:', JSON.stringify(response.data));
+        return response;
+      },
+      error => {
+        console.error('Ошибка при запросе к API ЮКассы:');
+        if (error.response) {
+          console.error('- Статус:', error.response.status);
+          console.error('- Данные:', JSON.stringify(error.response.data));
+        } else if (error.request) {
+          console.error('- Запрос был отправлен, но ответ не получен');
+          console.error('- Запрос:', error.request);
+        } else {
+          console.error('- Ошибка при настройке запроса:', error.message);
+        }
+        console.error('- Полная ошибка:', error);
+        return Promise.reject(error);
+      }
+    );
   }
 
   /**
@@ -28,14 +71,22 @@ class YooKassaAPI {
    */
   async createPayment(payload, idempotenceKey) {
     try {
+      console.log(`Отправка запроса на создание платежа (idempotenceKey: ${idempotenceKey})`);
+      
       const response = await this.axios.post('/payments', payload, {
         headers: {
           'Idempotence-Key': idempotenceKey
         }
       });
+      
       return response.data;
     } catch (error) {
-      console.error('YooKassa API Error:', error.response ? error.response.data : error.message);
+      console.error('Ошибка при создании платежа:');
+      
+      if (error.response && error.response.data) {
+        console.error('- Детали ошибки:', JSON.stringify(error.response.data));
+      }
+      
       throw error;
     }
   }
@@ -47,10 +98,18 @@ class YooKassaAPI {
    */
   async getPayment(paymentId) {
     try {
+      console.log(`Отправка запроса на получение платежа (paymentId: ${paymentId})`);
+      
       const response = await this.axios.get(`/payments/${paymentId}`);
+      
       return response.data;
     } catch (error) {
-      console.error('YooKassa API Error:', error.response ? error.response.data : error.message);
+      console.error('Ошибка при получении платежа:');
+      
+      if (error.response && error.response.data) {
+        console.error('- Детали ошибки:', JSON.stringify(error.response.data));
+      }
+      
       throw error;
     }
   }
@@ -59,7 +118,8 @@ class YooKassaAPI {
 // Инициализация API ЮКассы
 const yooKassa = new YooKassaAPI(
   config.yookassaShopId,
-  config.yookassaSecretKey
+  config.yookassaSecretKey,
+  config.yookassaTestMode === true
 );
 
 /**
@@ -72,11 +132,15 @@ const yooKassa = new YooKassaAPI(
  */
 async function createPayment(userId, planId, amount, description) {
   try {
-    console.log('Создание платежа в ЮКассе...');
-    console.log('ShopID:', config.yookassaShopId);
-    console.log('Amount:', amount);
+    console.log('=== Создание платежа в ЮКассе ===');
+    console.log('- User ID:', userId);
+    console.log('- Plan ID:', planId);
+    console.log('- Amount:', amount);
+    console.log('- Description:', description);
+    console.log('- Return URL:', config.yookassaReturnUrl);
     
     const idempotenceKey = uuidv4();
+    console.log('- Idempotence Key:', idempotenceKey);
     
     const paymentData = {
       amount: {
@@ -92,17 +156,27 @@ async function createPayment(userId, planId, amount, description) {
       metadata: {
         userId: userId,
         planId: planId
-      }
+      },
+      test: config.yookassaTestMode === true // Добавляем флаг тестового платежа
     };
     
-    console.log('Отправка запроса на создание платежа:', JSON.stringify(paymentData, null, 2));
-    
     const payment = await yooKassa.createPayment(paymentData, idempotenceKey);
-    console.log('Ответ API ЮКассы:', JSON.stringify(payment, null, 2));
+    
+    console.log('=== Платеж успешно создан ===');
+    console.log('- Payment ID:', payment.id);
+    console.log('- Status:', payment.status);
+    console.log('- Confirmation URL:', payment.confirmation?.confirmation_url);
     
     return payment;
   } catch (error) {
-    console.error('Ошибка при создании платежа в ЮКассе:', error);
+    console.error('=== Ошибка при создании платежа ===');
+    console.error('- Error:', error.message);
+    
+    if (error.response) {
+      console.error('- Status:', error.response.status);
+      console.error('- Data:', JSON.stringify(error.response.data));
+    }
+    
     throw error;
   }
 }
@@ -114,12 +188,25 @@ async function createPayment(userId, planId, amount, description) {
  */
 async function checkPaymentStatus(paymentId) {
   try {
-    console.log('Проверка статуса платежа:', paymentId);
+    console.log('=== Проверка статуса платежа ===');
+    console.log('- Payment ID:', paymentId);
+    
     const payment = await yooKassa.getPayment(paymentId);
-    console.log('Статус платежа:', payment.status);
+    
+    console.log('=== Статус платежа получен ===');
+    console.log('- Status:', payment.status);
+    console.log('- Paid:', payment.paid);
+    
     return payment;
   } catch (error) {
-    console.error('Ошибка при проверке статуса платежа:', error);
+    console.error('=== Ошибка при проверке статуса платежа ===');
+    console.error('- Error:', error.message);
+    
+    if (error.response) {
+      console.error('- Status:', error.response.status);
+      console.error('- Data:', JSON.stringify(error.response.data));
+    }
+    
     throw error;
   }
 }
@@ -131,7 +218,8 @@ async function checkPaymentStatus(paymentId) {
  */
 function processNotification(notification) {
   try {
-    console.log('Обработка уведомления от ЮКассы:', JSON.stringify(notification, null, 2));
+    console.log('=== Обработка уведомления от ЮКассы ===');
+    console.log('- Event:', notification.event);
     
     // Проверяем тип уведомления
     if (notification.event !== 'payment.succeeded' && 
@@ -162,11 +250,16 @@ function processNotification(notification) {
       createdAt: payment.created_at
     };
     
-    console.log('Обработанные данные платежа:', JSON.stringify(result, null, 2));
+    console.log('=== Уведомление обработано ===');
+    console.log('- Payment ID:', result.paymentId);
+    console.log('- Status:', result.status);
+    console.log('- User ID:', result.userId);
+    console.log('- Plan ID:', result.planId);
     
     return result;
   } catch (error) {
-    console.error('Ошибка при обработке уведомления:', error);
+    console.error('=== Ошибка при обработке уведомления ===');
+    console.error('- Error:', error.message);
     throw error;
   }
 }
