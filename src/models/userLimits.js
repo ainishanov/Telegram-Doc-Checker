@@ -430,6 +430,79 @@ function getAllPlans() {
   return Object.values(PLANS);
 }
 
+/**
+ * Обновляет тариф пользователя после успешной оплаты
+ * @param {string} userId - ID пользователя
+ * @param {string} planId - ID тарифа
+ * @param {string} paymentId - ID платежа
+ * @returns {Object} - Результат операции
+ */
+function updateUserPlanAfterPayment(userId, planId, paymentId) {
+  try {
+    console.log(`[DEBUG] Обновление тарифа пользователя ${userId} на ${planId} после оплаты ${paymentId}`);
+    
+    // Проверяем существование тарифа
+    if (!PLANS[planId]) {
+      console.error(`[ERROR] Не найден тариф ${planId} для обновления после оплаты`);
+      return {
+        success: false,
+        message: 'Указанный тариф не существует'
+      };
+    }
+    
+    // Получаем данные пользователя
+    const userData = getUserData(userId);
+    
+    // Рассчитываем даты начала и окончания подписки
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + PLANS[planId].duration);
+    
+    // Обновляем данные подписки
+    const subscriptionData = {
+      active: true,
+      planId: planId,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      paymentStatus: 'paid',
+      paymentId: paymentId,
+      paymentTimestamp: startDate.toISOString()
+    };
+    
+    // Создаем данные для обновления
+    const newData = {
+      ...userData,
+      plan: planId,
+      subscriptionData: subscriptionData
+    };
+    
+    // Сохраняем обновленные данные
+    const updatedData = saveUserData(userId, newData);
+    
+    if (!updatedData) {
+      console.error(`[ERROR] Ошибка при сохранении данных после оплаты для пользователя ${userId}`);
+      return {
+        success: false,
+        message: 'Ошибка при обновлении тарифа после оплаты'
+      };
+    }
+    
+    console.log(`[DEBUG] Успешно обновлен тариф пользователя ${userId} на ${planId} после оплаты`);
+    
+    return {
+      success: true,
+      message: `Тариф успешно обновлен на "${PLANS[planId].name}" после оплаты`,
+      subscription: subscriptionData
+    };
+  } catch (error) {
+    console.error(`[ERROR] Критическая ошибка при обновлении тарифа после оплаты:`, error);
+    return {
+      success: false,
+      message: 'Произошла ошибка при обновлении тарифа после оплаты'
+    };
+  }
+}
+
 // Экспортируем функции
 module.exports = {
   getUserData,
@@ -439,6 +512,7 @@ module.exports = {
   registerRequestUsage,
   changePlan,
   activateSubscription,
+  updateUserPlanAfterPayment,
   getAllPlans,
   PLANS
 }; 

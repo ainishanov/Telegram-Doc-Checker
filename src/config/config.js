@@ -3,12 +3,25 @@ require('dotenv').config();
 // Используем только модель Anthropic Claude
 console.log('Используется модель: Anthropic Claude');
 
+// Загружаем переменные окружения из .env
+require('dotenv').config();
+
+// Конфигурации для модуля работы с платежами
+const yookassaShopId = process.env.YOOKASSA_SHOP_ID || '';
+const yookassaSecretKey = process.env.YOOKASSA_SECRET_KEY || '';
+const yookassaReturnUrl = process.env.YOOKASSA_RETURN_URL || 'https://telegram-doc-checker.onrender.com/payment/success';
+const yookassaTestMode = process.env.YOOKASSA_TEST_MODE === 'true';
+
+// Конфигурация для сохранения платежей (может использоваться локальное хранилище)
+const databaseEnabled = process.env.DATABASE_ENABLED === 'true';
+const databaseUrl = process.env.DATABASE_URL || null;
+
 const config = {
   // Telegram
-  telegramToken: process.env.TELEGRAM_BOT_TOKEN,
+  telegramToken: process.env.TELEGRAM_BOT_TOKEN || '',
   
   // Anthropic
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
   
   // Администраторы бота (массив ID)
   adminIds: process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [],
@@ -40,10 +53,56 @@ const config = {
   },
   
   // YooKassa (ЮКасса) настройки
-  yookassaShopId: process.env.YOOKASSA_SHOP_ID || '',
-  yookassaSecretKey: process.env.YOOKASSA_SECRET_KEY || '',
-  yookassaTestMode: process.env.YOOKASSA_TEST_MODE === 'true',
-  yookassaReturnUrl: process.env.YOOKASSA_RETURN_URL || ''
+  yookassaShopId,
+  yookassaSecretKey,
+  yookassaTestMode,
+  yookassaReturnUrl,
+  
+  // Настройки для базы данных
+  databaseEnabled,
+  databaseUrl,
+  
+  // Настройки для Robokassa (при необходимости)
+  robokassaLogin: process.env.ROBOKASSA_LOGIN || '',
+  robokassaPassword1: process.env.ROBOKASSA_PASSWORD1 || '',
+  robokassaPassword2: process.env.ROBOKASSA_PASSWORD2 || '',
+  robokassaTestMode: process.env.ROBOKASSA_TEST_MODE === 'true',
+  
+  // Настройки для анализа документов
+  maxDocumentSize: parseInt(process.env.MAX_DOCUMENT_SIZE || '20971520', 10), // 20MB по умолчанию
+  allowedDocumentExtensions: (process.env.ALLOWED_DOCUMENT_EXTENSIONS || 'pdf,doc,docx,txt,rtf').split(','),
+  
+  // Настройки API
+  apiUrl: process.env.API_URL || 'https://api.telegram-doc-checker.com',
+  
+  // Функция для проверки, все ли необходимые переменные окружения установлены
+  validateEnv: function() {
+    const requiredVars = [
+      { name: 'TELEGRAM_BOT_TOKEN', value: this.telegramToken },
+      { name: 'ANTHROPIC_API_KEY', value: this.anthropicApiKey }
+    ];
+    
+    const paymentVars = [
+      { name: 'YOOKASSA_SHOP_ID', value: this.yookassaShopId },
+      { name: 'YOOKASSA_SECRET_KEY', value: this.yookassaSecretKey },
+      { name: 'YOOKASSA_RETURN_URL', value: this.yookassaReturnUrl }
+    ];
+    
+    const missingVars = requiredVars.filter(v => !v.value);
+    const missingPaymentVars = paymentVars.filter(v => !v.value);
+    
+    if (missingVars.length > 0) {
+      console.error('Отсутствуют необходимые переменные окружения:', missingVars.map(v => v.name).join(', '));
+      return false;
+    }
+    
+    if (missingPaymentVars.length > 0) {
+      console.warn('Отсутствуют переменные для работы с платежами:', missingPaymentVars.map(v => v.name).join(', '));
+      console.warn('Функционал оплаты будет недоступен');
+    }
+    
+    return true;
+  }
 };
 
 module.exports = config; 
