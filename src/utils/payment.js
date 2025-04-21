@@ -1,9 +1,9 @@
-const YooKassa = require('yookassa');
+const { YooCheckout } = require('yookassa-sdk');
 const { v4: uuidv4 } = require('uuid');
 const config = require('../config/config');
 
-// Инициализация YooKassa API
-const yooKassa = new YooKassa({
+// Инициализация YooKassa API с новой библиотекой
+const yooKassa = new YooCheckout({
   shopId: config.yookassaShopId,
   secretKey: config.yookassaSecretKey
 });
