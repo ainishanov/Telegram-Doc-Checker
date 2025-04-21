@@ -160,9 +160,18 @@ async function startBot() {
           console.log(`Запрос от пользователя: ${user.first_name} ${user.last_name || ''} (${user.id})`);
         }
         
-        // Передаем обновление боту для обработки
-        bot.processUpdate(req.body);
+        // Немедленно возвращаем 200 OK, чтобы Telegram не ждал ответа
         res.sendStatus(200);
+        
+        // Обрабатываем запрос асинхронно после отправки ответа
+        process.nextTick(() => {
+          try {
+            // Передаем обновление боту для обработки
+            bot.processUpdate(req.body);
+          } catch (processError) {
+            console.error('Ошибка при обработке webhook запроса (асинхронно):', processError);
+          }
+        });
       } catch (error) {
         console.error('Ошибка при обработке webhook запроса:', error);
         res.sendStatus(200); // Всегда отвечаем 200, чтобы Telegram не повторял запрос

@@ -37,7 +37,13 @@ const config = {
     resultUrl: process.env.ROBOKASSA_RESULT_URL || '',    // URL для уведомлений от Robokassa
     successUrl: process.env.ROBOKASSA_SUCCESS_URL || '',  // URL успешной оплаты
     failUrl: process.env.ROBOKASSA_FAIL_URL || ''         // URL неудачной оплаты
-  }
+  },
+  
+  // YooKassa (ЮКасса) настройки
+  yookassaShopId: process.env.YOOKASSA_SHOP_ID || '',
+  yookassaSecretKey: process.env.YOOKASSA_SECRET_KEY || '',
+  yookassaTestMode: process.env.YOOKASSA_TEST_MODE === 'true',
+  yookassaReturnUrl: process.env.YOOKASSA_RETURN_URL || ''
 };
 
 module.exports = config; 

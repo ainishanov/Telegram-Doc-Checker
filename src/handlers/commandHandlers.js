@@ -82,6 +82,11 @@ const handleStart = async (bot, msg) => {
   
   console.time(`handleStart_${chatId}`); // Начинаем замер времени
   
+  // Отправляем сообщение "печатает..." для мгновенного отклика
+  bot.sendChatAction(chatId, 'typing').catch(err => {
+    console.error(`Ошибка отправки статуса печати: ${err.message}`);
+  });
+  
   console.time(`getUserData_${chatId}`);
   const userData = getUserData(userId); // Получаем данные
   console.timeEnd(`getUserData_${chatId}`);

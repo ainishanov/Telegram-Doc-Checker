@@ -371,88 +371,85 @@ async function handleDirectActivation(bot, planId, msg) {
     return;
   }
   
-  // Сообщаем о начале процесса
-  await bot.sendMessage(chatId, 
-    `*Активация тарифа "${PLANS[planId].name}"*\n\nОбрабатываем ваш запрос...`,
-    { parse_mode: 'Markdown' }
-  );
-  
-  // Шаг 1: Меняем тариф пользователя
-  console.log(`[DEBUG] Изменение тарифа пользователя ${userId} на ${planId}`);
-  const changeResult = changePlan(userId, planId);
-  
-  if (!changeResult.success) {
-    console.log(`[ERROR] Ошибка изменения тарифа: ${changeResult.message}`);
-    await bot.sendMessage(chatId, `❌ Ошибка: ${changeResult.message}`);
-    return;
-  }
-  
-  // Проверяем, что тариф действительно изменился
-  const checkData = getUserData(userId);
-  console.log(`[DEBUG] Проверка изменения тарифа: текущий тариф=${checkData.plan}, ожидаемый=${planId}`);
-  
-  if (checkData.plan !== planId) {
-    console.log(`[ERROR] Тариф не был изменен: ${checkData.plan} !== ${planId}`);
-    await bot.sendMessage(chatId, `❌ Ошибка: Тариф не был изменен. Пожалуйста, попробуйте еще раз.`);
-    return;
-  }
-  
-  // Имитация задержки обработки платежа
-  setTimeout(async () => {
-    // Шаг 2: Активируем подписку
-    console.log(`[DEBUG] Активация подписки для пользователя ${userId} с тарифом ${planId}`);
-    const result = activateSubscription(userId);
+  try {
+    // Сообщаем о начале процесса
+    await bot.sendMessage(chatId, 
+      `*Активация тарифа "${PLANS[planId].name}"*\n\nПодготовка платежа...`,
+      { parse_mode: 'Markdown' }
+    );
     
-    if (!result.success) {
-      console.log(`[ERROR] Ошибка активации подписки: ${result.message}`);
-      await bot.sendMessage(chatId, `❌ Ошибка активации: ${result.message}`);
-      return;
-    }
-    
-    // Проверяем, что подписка действительно активирована
-    const userData = getUserData(userId);
-    console.log(`[DEBUG] Проверка активации подписки: active=${userData.subscriptionData?.active}, plan=${userData.plan}`);
-    
-    if (!userData.subscriptionData || !userData.subscriptionData.active) {
-      console.log(`[ERROR] Подписка не была активирована`);
-      await bot.sendMessage(chatId, `❌ Ошибка: Подписка не была активирована. Пожалуйста, попробуйте еще раз через меню "Мой тариф".`);
-      return;
-    }
-    
-    // Форматируем даты
-    const startDate = new Date(result.subscription.startDate).toLocaleDateString('ru-RU');
-    const endDate = new Date(result.subscription.endDate).toLocaleDateString('ru-RU');
-    
-    // Формируем сообщение об успешной оплате и активации
-    let message = `🎉 *Тариф "${PLANS[planId].name}" успешно оплачен и активирован!*\n\n`;
-    message += `💰 Стоимость: *${PLANS[planId].price} ₽*\n`;
-    message += `📅 Период: с ${startDate} по ${endDate}\n\n`;
-    
-    if (PLANS[planId].requestLimit === Infinity) {
-      message += `📊 Доступно договоров: *Безлимитно*\n\n`;
-    } else {
-      message += `📊 Доступно договоров: *${PLANS[planId].requestLimit}*\n\n`;
-    }
-    
-    message += 'Спасибо за поддержку нашего сервиса!';
-    
-    // Формируем клавиатуру
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: 'Просмотреть мой тариф', callback_data: 'show_tariff' }
+    // Интеграция с ЮКассой - создание платежа
+    try {
+      const payment = require('../utils/payment');
+      const amount = PLANS[planId].price;
+      const description = `Оплата тарифа "${PLANS[planId].name}" для бота Doc Checker Pro`;
+      
+      // Шаг 1: Меняем тариф пользователя
+      console.log(`[DEBUG] Изменение тарифа пользователя ${userId} на ${planId}`);
+      const changeResult = changePlan(userId, planId);
+      
+      if (!changeResult.success) {
+        console.log(`[ERROR] Ошибка изменения тарифа: ${changeResult.message}`);
+        await bot.sendMessage(chatId, `❌ Ошибка: ${changeResult.message}`);
+        return;
+      }
+      
+      // Создаем платеж в ЮКассе
+      console.log(`[DEBUG] Создание платежа в ЮКассе для пользователя ${userId}, тариф ${planId}, сумма ${amount}`);
+      const paymentData = await payment.createPayment(userId, planId, amount, description);
+      
+      // Получаем URL для оплаты
+      const paymentUrl = payment.getPaymentUrl(paymentData);
+      
+      if (!paymentUrl) {
+        throw new Error('Не удалось получить URL для оплаты');
+      }
+      
+      // Формируем сообщение для пользователя
+      let message = `*Тариф "${PLANS[planId].name}"*\n\n`;
+      message += `💰 Стоимость: *${PLANS[planId].price} ₽*\n`;
+      message += `📅 Период: *${PLANS[planId].duration} дней*\n\n`;
+      
+      if (PLANS[planId].requestLimit === Infinity) {
+        message += `📊 Количество проверок договоров: *Неограниченно*\n\n`;
+      } else {
+        message += `📊 Количество проверок договоров: *${PLANS[planId].requestLimit} в месяц*\n\n`;
+      }
+      
+      message += `Для оплаты тарифа нажмите кнопку "Оплатить" ниже и следуйте инструкциям на странице оплаты.\n\n`;
+      message += `После успешной оплаты вернитесь в бот и нажмите "Проверить статус оплаты".`;
+      
+      // Формируем клавиатуру с кнопками
+      const keyboard = {
+        inline_keyboard: [
+          [
+            { text: '💳 Оплатить', url: paymentUrl }
+          ],
+          [
+            { text: '🔄 Проверить статус оплаты', callback_data: `check_payment_${paymentData.id}` }
+          ],
+          [
+            { text: '« Назад', callback_data: 'show_tariff' }
+          ]
         ]
-      ]
-    };
-    
-    // Отправляем сообщение
-    await bot.sendMessage(chatId, message, {
-      parse_mode: 'Markdown',
-      reply_markup: keyboard
-    });
-    
-    console.log(`[DEBUG] Успешная активация тарифа ${planId} для пользователя ${userId}`);
-  }, 2000); // Имитация задержки 2 секунды
+      };
+      
+      // Отправляем сообщение с инструкциями по оплате
+      await bot.sendMessage(chatId, message, {
+        parse_mode: 'Markdown',
+        reply_markup: keyboard
+      });
+      
+      console.log(`[DEBUG] Создана ссылка на оплату для пользователя ${userId}, тариф ${planId}, payment_id=${paymentData.id}`);
+      
+    } catch (error) {
+      console.error(`[ERROR] Ошибка при создании платежа: ${error.message}`);
+      await bot.sendMessage(chatId, `❌ Ошибка при создании платежа: ${error.message}`);
+    }
+  } catch (error) {
+    console.error(`[ERROR] Общая ошибка при обработке платежа: ${error.message}`);
+    await bot.sendMessage(chatId, `❌ Произошла ошибка: ${error.message}`);
+  }
 }
 
 /**
