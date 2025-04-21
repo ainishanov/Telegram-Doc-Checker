@@ -1,12 +1,66 @@
-const YooKassa = require('yookassa-sdk');
+const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const config = require('../config/config');
 
-// Инициализация YooKassa API с новой библиотекой
-const yooKassa = new YooKassa({
-  shopId: config.yookassaShopId,
-  secretKey: config.yookassaSecretKey
-});
+// Класс для работы с API ЮКассы
+class YooKassaAPI {
+  constructor(shopId, secretKey) {
+    this.shopId = shopId;
+    this.secretKey = secretKey;
+    this.baseURL = 'https://api.yookassa.ru/v3';
+    this.axios = axios.create({
+      baseURL: this.baseURL,
+      auth: {
+        username: this.shopId,
+        password: this.secretKey
+      },
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+  }
+
+  /**
+   * Создать платеж
+   * @param {Object} payload - Данные платежа
+   * @param {string} idempotenceKey - Ключ идемпотентности
+   * @returns {Promise<Object>} - Ответ от API
+   */
+  async createPayment(payload, idempotenceKey) {
+    try {
+      const response = await this.axios.post('/payments', payload, {
+        headers: {
+          'Idempotence-Key': idempotenceKey
+        }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('YooKassa API Error:', error.response ? error.response.data : error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Получить информацию о платеже
+   * @param {string} paymentId - ID платежа
+   * @returns {Promise<Object>} - Ответ от API
+   */
+  async getPayment(paymentId) {
+    try {
+      const response = await this.axios.get(`/payments/${paymentId}`);
+      return response.data;
+    } catch (error) {
+      console.error('YooKassa API Error:', error.response ? error.response.data : error.message);
+      throw error;
+    }
+  }
+}
+
+// Инициализация API ЮКассы
+const yooKassa = new YooKassaAPI(
+  config.yookassaShopId,
+  config.yookassaSecretKey
+);
 
 /**
  * Создает платеж в ЮКассе
@@ -18,9 +72,13 @@ const yooKassa = new YooKassa({
  */
 async function createPayment(userId, planId, amount, description) {
   try {
+    console.log('Создание платежа в ЮКассе...');
+    console.log('ShopID:', config.yookassaShopId);
+    console.log('Amount:', amount);
+    
     const idempotenceKey = uuidv4();
     
-    const payment = await yooKassa.createPayment({
+    const paymentData = {
       amount: {
         value: amount.toFixed(2),
         currency: 'RUB'
@@ -35,7 +93,12 @@ async function createPayment(userId, planId, amount, description) {
         userId: userId,
         planId: planId
       }
-    }, idempotenceKey);
+    };
+    
+    console.log('Отправка запроса на создание платежа:', JSON.stringify(paymentData, null, 2));
+    
+    const payment = await yooKassa.createPayment(paymentData, idempotenceKey);
+    console.log('Ответ API ЮКассы:', JSON.stringify(payment, null, 2));
     
     return payment;
   } catch (error) {
@@ -51,7 +114,9 @@ async function createPayment(userId, planId, amount, description) {
  */
 async function checkPaymentStatus(paymentId) {
   try {
+    console.log('Проверка статуса платежа:', paymentId);
     const payment = await yooKassa.getPayment(paymentId);
+    console.log('Статус платежа:', payment.status);
     return payment;
   } catch (error) {
     console.error('Ошибка при проверке статуса платежа:', error);
@@ -66,6 +131,8 @@ async function checkPaymentStatus(paymentId) {
  */
 function processNotification(notification) {
   try {
+    console.log('Обработка уведомления от ЮКассы:', JSON.stringify(notification, null, 2));
+    
     // Проверяем тип уведомления
     if (notification.event !== 'payment.succeeded' && 
         notification.event !== 'payment.waiting_for_capture' &&
@@ -83,7 +150,7 @@ function processNotification(notification) {
       throw new Error('В метаданных платежа отсутствуют userId или planId');
     }
     
-    return {
+    const result = {
       paymentId: payment.id,
       status: payment.status,
       paid: payment.paid,
@@ -94,6 +161,10 @@ function processNotification(notification) {
       planId: planId,
       createdAt: payment.created_at
     };
+    
+    console.log('Обработанные данные платежа:', JSON.stringify(result, null, 2));
+    
+    return result;
   } catch (error) {
     console.error('Ошибка при обработке уведомления:', error);
     throw error;
