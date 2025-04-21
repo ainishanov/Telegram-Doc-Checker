@@ -163,21 +163,66 @@ class YooKassaAPI {
    */
   async createPayout(payload, idempotenceKey) {
     try {
+      console.log(`[YooKassa] Запрос на создание выплаты (idempotenceKey: ${idempotenceKey || 'автогенерация'})`);
+      
+      // Валидация обязательных полей
+      if (!payload.amount || !payload.amount.value || !payload.amount.currency) {
+        throw new Error('Не указаны обязательные параметры amount.value или amount.currency');
+      }
+      
+      if (!payload.payout_destination || !payload.payout_destination.type) {
+        throw new Error('Не указан тип получателя выплаты (payout_destination.type)');
+      }
+      
       // Добавляем параметр test, если включен тестовый режим
       if (this.isTestMode) {
         payload.test = true;
+        console.log('[YooKassa] Выплата создается в тестовом режиме');
       }
+      
+      // Генерируем idempotenceKey если не передан
+      const key = idempotenceKey || uuidv4();
       
       const response = await this.axios.post('/payouts', payload, {
         headers: {
-          'Idempotence-Key': idempotenceKey || uuidv4()
+          'Idempotence-Key': key
         }
       });
       
-      console.log(`[YooKassa] Выплата создана: ${response.data.id}`);
+      console.log(`[YooKassa] Выплата успешно создана: ${response.data.id}`);
+      console.log(`[YooKassa] Статус выплаты: ${response.data.status}`);
+      console.log(`[YooKassa] Сумма выплаты: ${response.data.amount.value} ${response.data.amount.currency}`);
+      
       return response.data;
     } catch (error) {
       console.error(`[YooKassa] Ошибка создания выплаты: ${error.message}`);
+      
+      if (error.response) {
+        const errorData = error.response.data;
+        console.error(`[YooKassa] HTTP статус: ${error.response.status}`);
+        
+        if (errorData && errorData.code) {
+          console.error(`[YooKassa] Код ошибки: ${errorData.code}`);
+          console.error(`[YooKassa] Описание: ${errorData.description || 'Нет описания'}`);
+          
+          // Специфические рекомендации в зависимости от кода ошибки
+          switch (errorData.code) {
+            case 'invalid_credentials':
+              console.error('[YooKassa] Ошибка авторизации. Проверьте shopId и secretKey');
+              break;
+            case 'insufficient_funds':
+              console.error('[YooKassa] Недостаточно средств для выплаты');
+              break;
+            case 'invalid_destination':
+              console.error('[YooKassa] Неверно указаны данные получателя платежа');
+              break;
+            case 'forbidden':
+              console.error('[YooKassa] Выполнение операции запрещено. Возможно, ваш магазин не имеет прав на выплаты. Проверьте настройки в личном кабинете ЮКассы');
+              break;
+          }
+        }
+      }
+      
       throw error;
     }
   }
@@ -189,11 +234,37 @@ class YooKassaAPI {
    */
   async getPayout(payoutId) {
     try {
+      console.log(`[YooKassa] Запрос информации о выплате: ${payoutId}`);
+      
+      // Проверка формата ID выплаты
+      if (!payoutId || !payoutId.startsWith('po-')) {
+        throw new Error(`Неверный формат ID выплаты: ${payoutId}. ID должен начинаться с "po-"`);
+      }
+      
       const response = await this.axios.get(`/payouts/${payoutId}`);
+      
       console.log(`[YooKassa] Получена информация о выплате: ${payoutId}`);
+      console.log(`[YooKassa] Статус выплаты: ${response.data.status}`);
+      console.log(`[YooKassa] Сумма выплаты: ${response.data.amount.value} ${response.data.amount.currency}`);
+      
       return response.data;
     } catch (error) {
       console.error(`[YooKassa] Ошибка получения информации о выплате: ${error.message}`);
+      
+      if (error.response) {
+        const errorData = error.response.data;
+        console.error(`[YooKassa] HTTP статус: ${error.response.status}`);
+        
+        if (error.response.status === 404) {
+          console.error(`[YooKassa] Выплата с ID ${payoutId} не найдена`);
+        }
+        
+        if (errorData && errorData.code) {
+          console.error(`[YooKassa] Код ошибки: ${errorData.code}`);
+          console.error(`[YooKassa] Описание: ${errorData.description || 'Нет описания'}`);
+        }
+      }
+      
       throw error;
     }
   }
@@ -444,10 +515,42 @@ async function createPayout(destinationType, accountNumber, amount, description,
   try {
     console.log('=== Создание выплаты в ЮКассе ===');
     console.log('- Destination Type:', destinationType);
-    console.log('- Account Number:', accountNumber.substring(0, 4) + '****' + accountNumber.slice(-4));
+    
+    // Маскируем номер карты/счета в логах для безопасности
+    const maskedAccount = accountNumber ? 
+      (accountNumber.length > 8 ? accountNumber.substring(0, 4) + '****' + accountNumber.slice(-4) : '****' + accountNumber.slice(-4)) : 
+      'Не указан';
+    
+    console.log('- Account Number:', maskedAccount);
     console.log('- Amount:', amount);
     console.log('- Description:', description);
     console.log('- Test Mode:', yookassaTestMode === true ? 'Да' : 'Нет');
+    
+    // Проверки входных данных
+    if (!destinationType) {
+      throw new Error('Не указан тип получателя выплаты (destinationType)');
+    }
+    
+    if (!accountNumber) {
+      throw new Error('Не указан номер счета/карты получателя (accountNumber)');
+    }
+    
+    if (!amount || amount <= 0) {
+      throw new Error('Сумма выплаты должна быть положительным числом');
+    }
+    
+    // Валидация типа получателя
+    const validTypes = ['yoo_money', 'bank_card', 'sbp', 'bank_account'];
+    if (!validTypes.includes(destinationType)) {
+      console.warn(`[WARN] Нестандартный тип получателя: ${destinationType}. Ожидаемые типы: ${validTypes.join(', ')}`);
+    }
+    
+    // Валидация формата счета в зависимости от типа
+    if (destinationType === 'bank_card' && !/^\d{16,19}$/.test(accountNumber)) {
+      console.warn('[WARN] Номер карты должен содержать от 16 до 19 цифр');
+    } else if (destinationType === 'yoo_money' && !/^\d{11,33}$/.test(accountNumber)) {
+      console.warn('[WARN] Номер кошелька YooMoney должен содержать от 11 до 33 цифр');
+    }
     
     // Проверяем настройки YooKassa
     if (!yookassaShopId || !yookassaSecretKey) {
@@ -458,11 +561,29 @@ async function createPayout(destinationType, accountNumber, amount, description,
     // Сначала проверим подключение к ЮКассе
     try {
       console.log('=== Проверка подключения к ЮКассе ===');
-      await yooKassa.checkConnection();
+      const shopInfo = await yooKassa.checkConnection();
       console.log('=== Подключение к ЮКассе успешно ===');
+      console.log('- Shop ID:', shopInfo.id);
+      console.log('- Shop Name:', shopInfo.name);
+      console.log('- Shop Status:', shopInfo.status);
+      
+      // Проверяем наличие прав на проведение выплат
+      const payoutBalanceEnabled = shopInfo.status === 'enabled' && 
+                                  shopInfo.fiscal_enabled !== false &&
+                                  shopInfo.payout_balance;
+                                  
+      if (!payoutBalanceEnabled) {
+        console.warn('[WARN] Возможно, у магазина отсутствуют права на проведение выплат');
+        console.warn('Проверьте настройки в личном кабинете ЮКассы, раздел "Настройки интеграции" → "Выплаты"');
+      }
     } catch (error) {
       console.error('=== Ошибка при проверке подключения к ЮКассе ===');
       console.error('- Error:', error.message);
+      
+      if (error.response && error.response.status === 401) {
+        throw new Error('Ошибка авторизации в ЮКассе. Проверьте shopId и secretKey в настройках.');
+      }
+      
       throw error;
     }
     
@@ -483,18 +604,39 @@ async function createPayout(destinationType, accountNumber, amount, description,
       test: yookassaTestMode === true // Добавляем флаг тестовой выплаты
     };
     
-    // Создаем выплату через API ЮКассы
-    const response = await yooKassa.axios.post('/payouts', payoutData, {
-      headers: {
-        'Idempotence-Key': idempotenceKey
+    // Если тип назначения - банковский счет, нужны дополнительные параметры
+    if (destinationType === 'bank_account') {
+      if (!metadata.first_name || !metadata.last_name || !metadata.bic) {
+        console.error('[ERROR] Для выплат на банковский счет необходимы дополнительные данные');
+        throw new Error('Для выплат на банковский счет требуются ФИО получателя и БИК банка. Добавьте их в поле metadata.');
       }
-    });
+      
+      // Добавляем данные для банковского счета
+      payoutData.payout_destination.bank_name = metadata.bank_name || '';
+      payoutData.payout_destination.bic = metadata.bic;
+      payoutData.payout_destination.recipient = {
+        first_name: metadata.first_name,
+        last_name: metadata.last_name,
+        middle_name: metadata.middle_name || '',
+        inn: metadata.inn || ''
+      };
+    }
     
-    const payout = response.data;
+    // Добавляем self_employed если это выплата самозанятому
+    if (metadata.self_employed === true) {
+      payoutData.self_employed = {
+        confirmed: true
+      };
+    }
+    
+    // Создаем выплату через метод класса YooKassaAPI
+    const payout = await yooKassa.createPayout(payoutData, idempotenceKey);
     
     console.log('=== Выплата успешно создана ===');
     console.log('- Payout ID:', payout.id);
     console.log('- Status:', payout.status);
+    console.log('- Amount:', `${payout.amount.value} ${payout.amount.currency}`);
+    console.log('- Created At:', payout.created_at);
     
     return payout;
   } catch (error) {
@@ -504,6 +646,18 @@ async function createPayout(destinationType, accountNumber, amount, description,
     if (error.response) {
       console.error('- Status:', error.response.status);
       console.error('- Data:', JSON.stringify(error.response.data));
+      
+      // Анализируем ошибку и выводим понятное сообщение
+      if (error.response.status === 403) {
+        throw new Error('Нет прав на создание выплат. Проверьте настройки магазина в личном кабинете ЮКассы.');
+      } else if (error.response.status === 400) {
+        const errorData = error.response.data;
+        if (errorData && errorData.code === 'invalid_request') {
+          throw new Error(`Ошибка в запросе: ${errorData.description || 'Проверьте формат данных'}`);
+        } else if (errorData && errorData.code === 'insufficient_funds') {
+          throw new Error('Недостаточно средств на балансе для совершения выплаты.');
+        }
+      }
     }
     
     throw error;
@@ -520,11 +674,41 @@ async function checkPayoutStatus(payoutId) {
     console.log('=== Проверка статуса выплаты ===');
     console.log('- Payout ID:', payoutId);
     
-    const response = await yooKassa.axios.get(`/payouts/${payoutId}`);
-    const payout = response.data;
+    // Проверяем формат ID выплаты
+    if (!payoutId) {
+      throw new Error('Не указан ID выплаты');
+    }
+    
+    if (!payoutId.startsWith('po-')) {
+      console.warn(`[WARN] Нестандартный формат ID выплаты: ${payoutId}. ID выплаты должен начинаться с "po-"`);
+    }
+    
+    // Используем метод класса YooKassaAPI для получения информации о выплате
+    const payout = await yooKassa.getPayout(payoutId);
     
     console.log('=== Статус выплаты получен ===');
     console.log('- Status:', payout.status);
+    console.log('- Amount:', `${payout.amount.value} ${payout.amount.currency}`);
+    console.log('- Created At:', payout.created_at);
+    
+    // Информативное сообщение о статусе
+    switch (payout.status) {
+      case 'pending':
+        console.log('- Выплата находится в обработке, статус ещё не известен');
+        break;
+      case 'succeeded':
+        console.log('- Выплата успешно зачислена получателю');
+        break;
+      case 'canceled':
+        console.log('- Выплата отменена');
+        if (payout.cancellation_details && payout.cancellation_details.reason) {
+          console.log(`- Причина отмены: ${payout.cancellation_details.reason}`);
+          console.log(`- Описание: ${payout.cancellation_details.party || 'Не указано'}`);
+        }
+        break;
+      default:
+        console.log(`- Неизвестный статус выплаты: ${payout.status}`);
+    }
     
     return payout;
   } catch (error) {
@@ -534,6 +718,12 @@ async function checkPayoutStatus(payoutId) {
     if (error.response) {
       console.error('- Status:', error.response.status);
       console.error('- Data:', JSON.stringify(error.response.data));
+      
+      if (error.response.status === 404) {
+        throw new Error(`Выплата с ID ${payoutId} не найдена`);
+      } else if (error.response.status === 401) {
+        throw new Error('Ошибка авторизации. Проверьте настройки API ЮКассы');
+      }
     }
     
     throw error;
@@ -548,29 +738,52 @@ async function checkPayoutStatus(payoutId) {
 function processPayoutNotification(notification) {
   try {
     console.log('=== Обработка уведомления о выплате от ЮКассы ===');
+    console.log('- Notification Type:', notification.event || 'Не указан');
     
-    if (!notification || !notification.id || !notification.id.startsWith('po-')) {
-      throw new Error('Невалидное уведомление о выплате');
+    // Проверяем структуру уведомления
+    if (!notification || !notification.event) {
+      throw new Error('Невалидное уведомление: отсутствует поле event');
     }
     
-    console.log('- Payout ID:', notification.id);
-    console.log('- Status:', notification.status);
+    // Проверяем тип уведомления
+    if (notification.event !== 'payout.succeeded' && 
+        notification.event !== 'payout.canceled') {
+      console.warn(`[WARN] Неожиданный тип уведомления: ${notification.event}`);
+    }
+    
+    // Проверяем наличие объекта выплаты
+    if (!notification.object || !notification.object.id) {
+      throw new Error('Невалидное уведомление: отсутствует объект выплаты');
+    }
+    
+    const payout = notification.object;
+    console.log('- Payout ID:', payout.id);
+    console.log('- Status:', payout.status);
     
     // Извлекаем метаданные
-    const metadata = notification.metadata || {};
+    const metadata = payout.metadata || {};
     
     const result = {
-      payoutId: notification.id,
-      status: notification.status,
-      amount: notification.amount.value,
-      currency: notification.amount.currency,
-      description: notification.description,
-      createdAt: notification.created_at,
+      payoutId: payout.id,
+      status: payout.status,
+      amount: payout.amount.value,
+      currency: payout.amount.currency,
+      description: payout.description,
+      createdAt: payout.created_at,
       metadata: metadata,
-      success: true
+      success: payout.status === 'succeeded',
+      canceled: payout.status === 'canceled',
+      cancellationDetails: payout.cancellation_details || null
     };
     
+    // Дополнительная информация, если выплата была отменена
+    if (payout.status === 'canceled' && payout.cancellation_details) {
+      console.log('- Причина отмены:', payout.cancellation_details.reason || 'Не указана');
+      console.log('- Инициатор отмены:', payout.cancellation_details.party || 'Не указан');
+    }
+    
     console.log('=== Уведомление о выплате обработано ===');
+    console.log('- Результат:', payout.status === 'succeeded' ? 'Успешно' : 'Не успешно');
     
     return result;
   } catch (error) {
@@ -578,8 +791,50 @@ function processPayoutNotification(notification) {
     console.error('- Error:', error.message);
     return {
       success: false,
-      message: error.message
+      message: error.message,
+      error: true,
+      raw: notification // Сохраняем исходное уведомление для отладки
     };
+  }
+}
+
+// Функция для получения баланса выплат
+async function getPayoutBalance() {
+  try {
+    console.log('=== Запрос баланса для выплат ===');
+    
+    // Проверка подключения и получение информации о магазине
+    const shopInfo = await yooKassa.checkConnection();
+    
+    // Проверяем наличие информации о балансе выплат
+    if (!shopInfo.payout_balance) {
+      console.warn('[WARN] Информация о балансе выплат отсутствует в ответе API');
+      return {
+        available: false,
+        message: 'Баланс выплат недоступен. Возможно, функция выплат не подключена для вашего магазина'
+      };
+    }
+    
+    const payoutBalance = shopInfo.payout_balance;
+    
+    console.log('=== Баланс для выплат получен ===');
+    console.log('- Доступный баланс:', `${payoutBalance.amount} ${payoutBalance.currency}`);
+    
+    return {
+      available: true,
+      amount: payoutBalance.amount,
+      currency: payoutBalance.currency
+    };
+  } catch (error) {
+    console.error('=== Ошибка при получении баланса для выплат ===');
+    console.error('- Error:', error.message);
+    
+    if (error.response) {
+      console.error('- Status:', error.response.status);
+      console.error('- Data:', JSON.stringify(error.response.data));
+    }
+    
+    throw error;
   }
 }
 
@@ -592,5 +847,6 @@ module.exports = {
   createPayout,
   checkPayoutStatus,
   processPayoutNotification,
+  getPayoutBalance,
   yooKassa
 }; 

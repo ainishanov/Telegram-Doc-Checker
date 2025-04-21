@@ -99,7 +99,7 @@ async function handleShowPlans(bot, msg) {
       message += '• Неограниченное количество проверок договоров\n';
     } else {
       if (plan.id === 'FREE') {
-        message += `• ${plan.requestLimit} проверки договоров бесплатно навсегда\n`;
+        message += `• ${plan.requestLimit} проверок договоров бесплатно навсегда\n`;
       } else {
         message += `• ${plan.requestLimit} проверок договоров в месяц\n`;
       }
