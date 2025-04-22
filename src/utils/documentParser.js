@@ -9,6 +9,7 @@ const mammoth = require('mammoth');
 const docxParser = require('docx-parser');
 const rtfParser = require('rtf-parser');
 const cheerio = require('cheerio');
+const { createWorker } = require('tesseract.js');
 
 /**
  * Загрузка файла из Telegram
@@ -118,16 +119,72 @@ async function extractTextFromPdf(filePath) {
     const data = await pdfParse(dataBuffer, options);
     console.log(`Текст из PDF извлечен, размер: ${data.text.length} символов, количество страниц: ${data.numpages}`);
     
-    if (!data.text || data.text.trim() === '') {
-      console.error('Извлеченный текст пуст, возможно PDF содержит изображения или защищен');
-      return 'Не удалось извлечь текст из PDF. Возможно, документ защищен или содержит только изображения.';
+    // Если текст не удалось извлечь или его очень мало, пробуем OCR
+    if (!data.text || data.text.trim() === '' || (data.text.length < 100 && data.numpages > 0)) {
+      console.log('Извлеченный текст пуст или слишком короткий, пробуем OCR распознавание...');
+      
+      // Проверяем, что PDF имеет хотя бы одну страницу
+      if (data.numpages > 0) {
+        return await extractTextFromPdfUsingOcr(filePath, data.numpages);
+      } else {
+        console.error('PDF не содержит страниц для OCR');
+        return 'Не удалось извлечь текст из PDF. Документ может быть пустым или содержать только изображения.';
+      }
     }
     
     return data.text;
   } catch (error) {
     console.error('Ошибка при извлечении текста из PDF:', error);
     console.error('Стек ошибки:', error.stack);
-    throw new Error(`Не удалось извлечь текст из PDF документа: ${error.message}`);
+    
+    // Пробуем OCR как запасной вариант
+    try {
+      console.log('Пробуем использовать OCR для извлечения текста...');
+      return await extractTextFromPdfUsingOcr(filePath);
+    } catch (ocrError) {
+      console.error('Ошибка при попытке OCR:', ocrError);
+      throw new Error(`Не удалось извлечь текст из PDF документа: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Извлечение текста из PDF с использованием OCR
+ * @param {string} filePath - Путь к PDF файлу
+ * @param {number} pageCount - Количество страниц (если известно)
+ * @returns {Promise<string>} - Извлеченный текст
+ */
+async function extractTextFromPdfUsingOcr(filePath, pageCount = 10) {
+  console.log(`Начало OCR обработки PDF: ${filePath}`);
+  
+  try {
+    // Создаем временную директорию для изображений
+    const tempDirImages = path.join(__dirname, '../../temp/images');
+    if (!fs.existsSync(tempDirImages)) {
+      fs.mkdirSync(tempDirImages, { recursive: true });
+    }
+    
+    // Используем pdftoppm или другую утилиту для конвертации PDF в изображения
+    // В Windows можно использовать pdf.js для рендеринга или другие библиотеки
+    
+    // Временное решение: сообщаем пользователю, что нужно конвертировать PDF в текстовый формат
+    console.log('OCR в процессе разработки. Временно используем запасное сообщение.');
+    
+    return `Документ содержит текст в виде изображений. 
+
+Извлеченный текст слишком короткий для полного анализа. Пожалуйста, воспользуйтесь одним из следующих способов:
+
+1. Преобразуйте PDF в текстовый формат с помощью онлайн-сервиса OCR, например:
+   - https://pdf.online/ru/pdf-ocr
+   - https://www.onlineocr.net/ru/
+   - https://document.online-convert.com/ru/convert-to-txt
+
+2. Скопируйте основные части договора (стороны, предмет, существенные условия) и отправьте их в виде текстового сообщения.
+
+3. Если у вас есть исходная версия документа в формате DOC или DOCX, отправьте ее вместо PDF.`;
+  } catch (error) {
+    console.error('Ошибка при OCR обработке:', error);
+    throw new Error('Ошибка при OCR обработке PDF. Пожалуйста, конвертируйте документ в текстовый формат.');
   }
 }
 

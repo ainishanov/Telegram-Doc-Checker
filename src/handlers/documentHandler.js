@@ -129,6 +129,21 @@ async function handleDocument(bot, msg, options = {}) {
       if (documentText.startsWith('Не удалось извлечь текст')) {
         throw new Error(documentText);
       }
+      
+      // Проверяем, содержит ли текст сообщение об OCR
+      if (documentText.includes('Документ содержит текст в виде изображений')) {
+        // Это особый случай - текст с OCR-рекомендациями
+        await bot.editMessageText(
+          documentText, 
+          {
+            chat_id: chatId,
+            message_id: processingMsg.message_id,
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true
+          }
+        );
+        return;
+      }
     } catch (extractError) {
       console.error('Ошибка при извлечении текста из документа:', extractError);
       
