@@ -84,28 +84,50 @@ async function downloadTelegramFile(fileId, bot) {
 async function extractTextFromPdf(filePath) {
   try {
     console.log(`Извлечение текста из PDF: ${filePath}`);
+    
+    // Проверяем существование файла
+    if (!fs.existsSync(filePath)) {
+      console.error(`Ошибка: PDF файл не найден: ${filePath}`);
+      return null;
+    }
+    
     const dataBuffer = fs.readFileSync(filePath);
+    console.log(`Размер файла PDF: ${dataBuffer.length} байт`);
     
     // Ограничиваем размер обрабатываемого файла
     const MAX_SIZE = 20 * 1024 * 1024; // 20 МБ
     if (dataBuffer.length > MAX_SIZE) {
       console.log(`PDF слишком большой: ${dataBuffer.length} байт. Будет обработано только ${MAX_SIZE} байт.`);
       // Для PDF формата нельзя просто обрезать Buffer, поэтому добавим предупреждение
-      const data = await pdfParse(dataBuffer, { max: 100 }); // Ограничиваем до 100 страниц
-      return data.text + "\n\n[ВНИМАНИЕ: Документ слишком большой, показаны только первые 100 страниц]";
+      try {
+        const data = await pdfParse(dataBuffer, { max: 100 }); // Ограничиваем до 100 страниц
+        console.log(`Успешно извлечен текст из большого PDF (${data.numpages} страниц)`);
+        return data.text + "\n\n[ВНИМАНИЕ: Документ слишком большой, показаны только первые 100 страниц]";
+      } catch (pdfError) {
+        console.error('Ошибка при извлечении текста из большого PDF:', pdfError);
+        throw new Error(`Ошибка обработки большого PDF файла: ${pdfError.message}`);
+      }
     }
     
     // Используем опции для ограничения обработки
     const options = {
-      max: 100 // Максимальное количество страниц
+      max: 100, // Максимальное количество страниц
+      timeout: 120000 // 2 минуты таймаут
     };
     
     const data = await pdfParse(dataBuffer, options);
-    console.log(`Текст из PDF извлечен, размер: ${data.text.length} символов`);
+    console.log(`Текст из PDF извлечен, размер: ${data.text.length} символов, количество страниц: ${data.numpages}`);
+    
+    if (!data.text || data.text.trim() === '') {
+      console.error('Извлеченный текст пуст, возможно PDF содержит изображения или защищен');
+      return 'Не удалось извлечь текст из PDF. Возможно, документ защищен или содержит только изображения.';
+    }
+    
     return data.text;
   } catch (error) {
     console.error('Ошибка при извлечении текста из PDF:', error);
-    return null;
+    console.error('Стек ошибки:', error.stack);
+    throw new Error(`Не удалось извлечь текст из PDF документа: ${error.message}`);
   }
 }
 

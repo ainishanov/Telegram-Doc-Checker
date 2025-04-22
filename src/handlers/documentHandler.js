@@ -112,16 +112,48 @@ async function handleDocument(bot, msg, options = {}) {
     }, 15000); // 15 секунд
     
     // Извлекаем текст из документа
-    const documentText = await extractTextFromDocument(filePath);
-    clearTimeout(extractTimeout);
+    console.log('Начинаю извлечение текста из документа...');
     
-    console.log(`Текст извлечен, длина: ${documentText ? documentText.length : 0} символов`);
-    
-    if (!documentText) {
-      bot.sendMessage(
-        chatId, 
-        `Не удалось извлечь текст из документа "${fileName}". Пожалуйста, убедитесь, что файл не поврежден и содержит текст.`
+    let documentText;
+    try {
+      documentText = await extractTextFromDocument(filePath);
+      clearTimeout(extractTimeout);
+      console.log(`Текст успешно извлечен, размер: ${documentText ? documentText.length : 0} символов`);
+      
+      // Проверяем, что текст был успешно извлечен
+      if (!documentText || documentText.trim() === '') {
+        throw new Error('Текст документа пуст');
+      }
+      
+      // Проверяем, содержит ли текст сообщение об ошибке из модуля извлечения
+      if (documentText.startsWith('Не удалось извлечь текст')) {
+        throw new Error(documentText);
+      }
+    } catch (extractError) {
+      console.error('Ошибка при извлечении текста из документа:', extractError);
+      
+      let errorMessage = 'Произошла ошибка при извлечении текста из документа.';
+      
+      if (extractError.message.includes('PDF слишком большой') || 
+          extractError.message.includes('превышает возможности') ||
+          extractError.message.includes('слишком большой для обработки')) {
+        errorMessage = 'Документ слишком большой для обработки. Пожалуйста, отправьте сокращенную версию документа (до 20 МБ).';
+      } else if (extractError.message.includes('защищен') || 
+                extractError.message.includes('содержит только изображения')) {
+        errorMessage = 'Не удалось извлечь текст из документа. Документ может быть защищен от копирования или содержать только изображения. Пожалуйста, отправьте документ в текстовом формате.';
+      } else if (extractError.message.includes('Текст документа пуст')) {
+        errorMessage = 'Документ не содержит текста или формат документа не поддерживается. Пожалуйста, отправьте текстовый документ (PDF, DOCX, DOC, RTF или TXT).';
+      }
+      
+      await bot.editMessageText(
+        `❌ ${errorMessage}`, 
+        {
+          chat_id: chatId,
+          message_id: processingMsg.message_id
+        }
       );
+      
+      console.log(`Отправлено сообщение об ошибке извлечения текста: ${errorMessage}`);
       return;
     }
     
@@ -285,8 +317,40 @@ async function handleDocument(bot, msg, options = {}) {
     }, 45000); // 45 секунд
     
     // Анализируем документ
-    const analysis = await analyzeDocumentWithSelectedModel(documentText);
-    clearTimeout(analysisTimeout);
+    let analysis;
+    try {
+      analysis = await analyzeDocumentWithSelectedModel(documentText);
+      clearTimeout(analysisTimeout);
+    } catch (analysisError) {
+      clearTimeout(analysisTimeout);
+      console.error('Ошибка при анализе документа:', analysisError);
+      
+      // Формируем понятное сообщение об ошибке для разных случаев ошибок анализа
+      let errorMessage = 'Произошла ошибка при анализе документа.';
+      
+      if (analysisError.message.includes('context_length_exceeded') || 
+          analysisError.message.includes('maximum context length')) {
+        errorMessage = 'Документ слишком большой для анализа. Пожалуйста, отправьте сокращенную версию документа или только наиболее важные разделы договора.';
+      } else if (analysisError.message.includes('Текст документа пуст')) {
+        errorMessage = 'Не удалось извлечь текст из документа. Пожалуйста, убедитесь, что документ содержит текстовую информацию, а не только изображения.';
+      } else if (analysisError.message.includes('Не удалось определить стороны договора')) {
+        errorMessage = 'Не удалось определить стороны договора. Возможно документ имеет нестандартную структуру или не содержит явного указания сторон.';
+      } else if (analysisError.message.includes('Не удалось разобрать ответ')) {
+        errorMessage = 'Произошла техническая ошибка при анализе документа. Пожалуйста, попробуйте еще раз или отправьте документ другого формата (например, в формате DOCX).';
+      } 
+      
+      // Сообщаем пользователю о проблеме
+      await bot.editMessageText(
+        `❌ ${errorMessage}`, 
+        {
+          chat_id: chatId,
+          message_id: processingMsg.message_id
+        }
+      );
+      
+      console.log(`Отправлено сообщение об ошибке пользователю: ${errorMessage}`);
+      return;
+    }
     
     console.log('Анализ завершен, формирую ответ...');
     

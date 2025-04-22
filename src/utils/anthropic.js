@@ -16,21 +16,38 @@ class AnthropicService {
    * @returns {Promise<Object>} - Результат анализа
    */
   async analyzeDocument(text, role, name) {
-    console.log(`Отправка документа на анализ в Anthropic (${text.length} символов)`);
-    
-    // Ограничиваем размер текста для предотвращения превышения контекста
-    // Claude 3 может обрабатывать до 200K токенов
-    if (text.length > 150000) {
-      console.log(`Документ слишком большой (${text.length} символов), ограничиваем до 150000 символов`);
-      text = text.substring(0, 150000) + '... [текст сокращен из-за ограничений размера]';
-    }
+    try {
+      console.log(`Отправка документа на анализ в Anthropic (${text.length} символов)`);
+      
+      // Проверяем, что текст не пустой
+      if (!text || text.trim() === '') {
+        console.error('Текст документа пуст');
+        throw new Error('Текст документа пуст');
+      }
+      
+      // Ограничиваем размер текста для предотвращения превышения контекста
+      // Claude 3 может обрабатывать до 200K токенов
+      const MAX_TEXT_LENGTH = 150000;
+      if (text.length > MAX_TEXT_LENGTH) {
+        console.log(`Документ слишком большой (${text.length} символов), ограничиваем до ${MAX_TEXT_LENGTH} символов`);
+        text = text.substring(0, MAX_TEXT_LENGTH) + '... [текст сокращен из-за ограничений размера]';
+      }
 
-    // Формируем системный промпт для Claude
-    let systemPrompt = '';
-    
-    if (role && name) {
-      // Если предоставлены роль и имя, используем расширенный анализ для конкретной стороны
-      systemPrompt = `Ты - опытный юрист, специализирующийся на анализе договоров. 
+      // Оценка количества токенов (примерно 4 символа = 1 токен)
+      const estimatedTokens = Math.ceil(text.length / 4);
+      console.log(`Приблизительное количество токенов: ${estimatedTokens}`);
+      
+      if (estimatedTokens > 180000) {
+        console.error('Документ превышает возможности API по обработке (слишком много токенов)');
+        throw new Error('context_length_exceeded');
+      }
+
+      // Формируем системный промпт для Claude
+      let systemPrompt = '';
+      
+      if (role && name) {
+        // Если предоставлены роль и имя, используем расширенный анализ для конкретной стороны
+        systemPrompt = `Ты - опытный юрист, специализирующийся на анализе договоров. 
 Твоя задача - проверить договор на наличие рисков, недостатков и подводных камней.
 
 Проанализируй договор с точки зрения ${role} (${name}).
@@ -52,9 +69,9 @@ class AnthropicService {
 6. **Отсутствующие важные пункты** - что следовало бы добавить для защиты ${role}
 7. **Рекомендации по улучшению** - как сделать договор безопаснее для ${role}
 8. **Общее заключение** - общая оценка договора с точки зрения безопасности для ${role}`;
-    } else {
-      // Если роль и имя не предоставлены, используем общий анализ документа
-      systemPrompt = `Ты - опытный юрист, специализирующийся на анализе договоров.
+      } else {
+        // Если роль и имя не предоставлены, используем общий анализ документа
+        systemPrompt = `Ты - опытный юрист, специализирующийся на анализе договоров.
 Твоя задача - определить тип документа, выделить основные условия и стороны договора.
 
 Проанализируй предоставленный текст и выдели следующую информацию в JSON формате:
@@ -103,42 +120,101 @@ class AnthropicService {
 - Все описания должны быть краткими, по 1-2 предложения
 - Используй только информацию из документа
 - Формат ответа: строго JSON без дополнительных пояснений`;
-    }
+      }
 
-    try {
-      const response = await this.client.messages.create({
-        model: "claude-3-opus-20240229",
-        max_tokens: 4000,
-        system: systemPrompt,
-        messages: [
-          { 
-            role: "user",
-            content: `Вот текст договора для анализа:\n\n${text}`
+      console.log('Отправка запроса к API Anthropic...');
+      const startTime = Date.now();
+      
+      try {
+        const response = await this.client.messages.create({
+          model: "claude-3-opus-20240229",
+          max_tokens: 4000,
+          system: systemPrompt,
+          messages: [
+            { 
+              role: "user",
+              content: `Вот текст договора для анализа:\n\n${text}`
+            }
+          ],
+          temperature: 0.3, // Более низкая температура для более предсказуемых результатов
+        });
+        
+        const endTime = Date.now();
+        console.log(`Ответ от API Anthropic получен за ${(endTime - startTime) / 1000} секунд`);
+  
+        if (role && name) {
+          return {
+            analysis: response.content[0].text,
+            usage: {
+              prompt_tokens: 0, // Claude не возвращает точное количество токенов 
+              completion_tokens: 0, // Но можно будет добавить оценку, если нужно
+              total_tokens: 0
+            }
+          };
+        } else {
+          // Если это первичный анализ, пытаемся распарсить JSON из ответа
+          try {
+            // Проверяем, что ответ не пустой
+            if (!response.content || !response.content[0] || !response.content[0].text) {
+              console.error('Получен пустой ответ от API Anthropic');
+              throw new Error('Получен пустой ответ от API');
+            }
+            
+            const responseText = response.content[0].text.trim();
+            console.log(`Получен ответ от API (${responseText.length} символов)`);
+            
+            // Пробуем извлечь JSON из ответа
+            let jsonStr = responseText;
+            
+            // Если ответ содержит бэктики (код), извлекаем JSON из них
+            if (responseText.includes('```json')) {
+              jsonStr = responseText.split('```json')[1].split('```')[0].trim();
+            } else if (responseText.includes('```')) {
+              jsonStr = responseText.split('```')[1].split('```')[0].trim();
+            }
+            
+            console.log('Попытка парсинга JSON ответа...');
+            const jsonResponse = JSON.parse(jsonStr);
+            
+            // Проверяем, содержит ли ответ необходимые поля
+            if (jsonResponse.isContract === undefined) {
+              console.error('API вернул JSON без обязательного поля isContract');
+              throw new Error('Некорректный формат ответа API: отсутствует поле isContract');
+            }
+            
+            // Проверяем, является ли документ договором
+            if (jsonResponse.isContract) {
+              // Проверяем наличие информации о сторонах договора
+              if (!jsonResponse.party1 || !jsonResponse.party2) {
+                console.error('API вернул JSON без информации о сторонах договора');
+                throw new Error('Не удалось определить стороны договора');
+              }
+            }
+            
+            return jsonResponse;
+          } catch (parseError) {
+            console.error('Ошибка при разборе JSON ответа:', parseError);
+            console.error('Текст ответа:', response.content[0].text.substring(0, 500) + '...');
+            throw new Error('Не удалось разобрать ответ от API');
           }
-        ],
-      });
-
-      if (role && name) {
-        return {
-          analysis: response.content[0].text,
-          usage: {
-            prompt_tokens: 0, // Claude не возвращает точное количество токенов 
-            completion_tokens: 0, // Но можно будет добавить оценку, если нужно
-            total_tokens: 0
-          }
-        };
-      } else {
-        // Если это первичный анализ, пытаемся распарсить JSON из ответа
-        try {
-          const jsonResponse = JSON.parse(response.content[0].text);
-          return jsonResponse;
-        } catch (parseError) {
-          console.error('Ошибка при разборе JSON ответа:', parseError);
-          throw new Error('Не удалось разобрать ответ от API');
         }
+      } catch (apiError) {
+        console.error('Ошибка при запросе к Anthropic API:', apiError);
+        
+        // Обработка специфических ошибок API
+        if (apiError.status === 400 && apiError.message && apiError.message.includes('context_length_exceeded')) {
+          throw new Error('context_length_exceeded');
+        } else if (apiError.status === 429) {
+          throw new Error('Превышен лимит запросов к API. Пожалуйста, попробуйте позже.');
+        } else if (apiError.status >= 500) {
+          throw new Error('Ошибка сервера API. Пожалуйста, попробуйте позже.');
+        }
+        
+        // Перебрасываем ошибку дальше
+        throw apiError;
       }
     } catch (error) {
-      console.error('Ошибка при анализе документа через Anthropic:', error);
+      console.error('Общая ошибка при анализе документа через Anthropic:', error);
       throw error;
     }
   }
