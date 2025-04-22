@@ -130,19 +130,19 @@ async function handleDocument(bot, msg, options = {}) {
         throw new Error(documentText);
       }
       
-      // Проверяем, содержит ли текст сообщение об OCR
-      if (documentText.includes('Документ содержит текст в виде изображений')) {
-        // Это особый случай - текст с OCR-рекомендациями
+      // Проверяем, содержит ли текст предупреждение о тексте в виде изображений
+      const hasImageWarning = documentText.includes('[ВНИМАНИЕ: Документ содержит текст в виде изображений');
+      
+      // Если документ содержит предупреждение о тексте в виде изображений
+      if (hasImageWarning) {
+        // Мы все равно пытаемся анализировать документ, но уведомляем пользователя
         await bot.editMessageText(
-          documentText, 
+          `⚠️ Документ "${fileName}" содержит текст в виде изображений. Выполняем анализ на основе частично извлеченного текста...`, 
           {
             chat_id: chatId,
-            message_id: processingMsg.message_id,
-            parse_mode: 'Markdown',
-            disable_web_page_preview: true
+            message_id: processingMsg.message_id
           }
         );
-        return;
       }
     } catch (extractError) {
       console.error('Ошибка при извлечении текста из документа:', extractError);
