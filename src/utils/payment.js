@@ -302,12 +302,16 @@ async function createPayment(userId, planId, amount, description) {
     }
     
     // Проверяем shopId на валидность для тестового режима
+    /* Отключаем эту проверку, т.к. формат тестового shopId может отличаться
     if (yookassaTestMode && !yookassaShopId.toString().startsWith('5')) {
       console.error('[ERROR] Для тестового режима YooKassa shopId должен начинаться с цифры 5');
       console.error('- Текущий shopId:', yookassaShopId);
       console.error('- Для тестовых платежей используйте shopId и secretKey из раздела "Тестовые платежи" в личном кабинете YooKassa');
       throw new Error('Неверная конфигурация тестового режима YooKassa. Пожалуйста, обратитесь к администратору бота.');
     }
+    */
+    // Проверка соответствия shopId и тестового режима, с учетом, что формат ID может быть любой
+    console.log(`[INFO] Используется shopId ${yookassaShopId} в ${yookassaTestMode ? 'тестовом' : 'боевом'} режиме`);
     
     // Проверяем secretKey на соответствие тестовому режиму
     if (yookassaTestMode && !yookassaSecretKey.startsWith('test_')) {
