@@ -8,7 +8,7 @@ const {
   setupPermanentMenu,
   handleAbout
 } = require('./handlers/commandHandlers');
-const { handleDocument, handlePartySelection } = require('./handlers/documentHandler');
+const { handleDocument, handlePartySelection, handleTextMessage } = require('./handlers/documentHandler');
 const {
   handleShowTariff,
   handleShowPlans,
@@ -217,14 +217,22 @@ async function startBot() {
   bot.onText(/\/plans/, (msg) => handleShowPlans(bot, msg));
   bot.onText(/\/about/, (msg) => handleAbout(bot, msg));
   
-  // Обработчик текстовых сообщений для меню
-  bot.on('text', (msg) => {
-    // Проверяем, является ли сообщение командой из меню
-    if (msg.text.startsWith('/')) return; // Пропускаем обычные команды
-    handleMenuCommand(bot, msg);
+  // Обработка текстовых сообщений
+  bot.on('message', async (msg) => {
+    if (msg.text && !msg.text.startsWith('/')) {
+      // Проверяем, является ли это запросом на принудительную обработку документа
+      const handled = await handleTextMessage(bot, msg);
+      
+      // Если сообщение было обработано, ничего больше не делаем
+      if (handled) {
+        return;
+      }
+      
+      // Здесь можно добавить другую логику обработки текстовых сообщений
+    }
   });
   
-  // Обработчик документов
+  // Обработка документов
   bot.on('document', (msg) => handleDocument(bot, msg));
   
   // Обработчик callback-запросов
