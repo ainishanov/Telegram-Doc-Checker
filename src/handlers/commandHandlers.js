@@ -58,8 +58,12 @@ function handleMenuCommand(bot, msg) {
   const chatId = msg.chat.id;
   const text = msg.text;
   
+  console.log(`[DEBUG] handleMenuCommand вызван с текстом "${text}" для чата ${chatId}`);
+  
   switch (text) {
     case '📊 Мой тариф':
+      console.log(`[DEBUG] Попытка вызова handleShowTariff для чата ${chatId}`);
+      console.log(`[DEBUG] handleShowTariff существует: ${typeof handleShowTariff === 'function'}`);
       handleShowTariff(bot, msg);
       break;
     case '📋 Функции бота':
