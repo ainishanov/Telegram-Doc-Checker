@@ -1,6 +1,6 @@
 const { getUserSettings, updateUserSettings, resetPrompt } = require('../models/userSettings');
-const { getUserLimits, PLANS, getUserData } = require('../models/userLimits');
-const { handleStatus, handleUpgrade, handleDowngrade, handleShowTariff } = require('./planHandlers');
+const { PLANS, getUserData } = require('../models/userLimits');
+const { handleShowTariff } = require('./planHandlers');
 const config = require('../config/config');
 
 // Информация о компании
