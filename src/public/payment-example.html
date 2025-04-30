@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оплата через ЮKassa</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f7f7f7;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2d6da3;
+            margin-top: 0;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #2d6da3;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #245580;
+        }
+        .payment-methods {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .payment-methods img {
+            height: 40px;
+            margin: 0 10px;
+        }
+        .error {
+            color: #e41e3f;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .success {
+            color: #28a745;
+            margin-top: 10px;
+            text-align: center;
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2d6da3;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Оплата услуг</h1>
+        
+        <div class="payment-methods">
+            <img src="https://yookassa.ru/docs/assets/ui-components/yamoney-pay/yamoney-pay-accept-payment.svg" alt="YooMoney">
+            <img src="https://yookassa.ru/docs/assets/ui-components/bank-card/bank-card-visa-accept-payment.svg" alt="Visa">
+            <img src="https://yookassa.ru/docs/assets/ui-components/bank-card/bank-card-mastercard-accept-payment.svg" alt="MasterCard">
+            <img src="https://yookassa.ru/docs/assets/ui-components/bank-card/bank-card-mir-accept-payment.svg" alt="Mir">
+        </div>
+        
+        <form id="payment-form">
+            <div class="form-group">
+                <label for="amount">Сумма платежа (руб.)</label>
+                <input type="number" id="amount" name="amount" required min="1" step="1" value="100">
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Описание платежа</label>
+                <input type="text" id="description" name="description" placeholder="Например: Оплата услуг">
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email для чека</label>
+                <input type="email" id="email" name="email" placeholder="your@email.com">
+            </div>
+            
+            <button type="submit" id="submit-btn">Перейти к оплате</button>
+        </form>
+        
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>Создание платежа...</p>
+        </div>
+        
+        <div id="error-message" class="error"></div>
+        <div id="success-message" class="success"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('payment-form');
+            const errorMessage = document.getElementById('error-message');
+            const successMessage = document.getElementById('success-message');
+            const loading = document.getElementById('loading');
+            const submitBtn = document.getElementById('submit-btn');
+
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                // Очищаем сообщения
+                errorMessage.textContent = '';
+                successMessage.textContent = '';
+                
+                // Показываем индикатор загрузки
+                loading.style.display = 'block';
+                submitBtn.disabled = true;
+                
+                // Получаем данные формы
+                const amount = document.getElementById('amount').value;
+                const description = document.getElementById('description').value || 'Оплата услуг';
+                const email = document.getElementById('email').value;
+                
+                // Создаем объект с данными
+                const paymentData = {
+                    amount: parseFloat(amount),
+                    description: description,
+                    metadata: {
+                        email: email
+                    }
+                };
+                
+                try {
+                    // Отправляем запрос на создание платежа
+                    const response = await fetch('/yookassa/create', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(paymentData)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success && result.payment && result.payment.confirmation && result.payment.confirmation.confirmation_url) {
+                        // Если платеж успешно создан, перенаправляем пользователя на страницу оплаты
+                        successMessage.textContent = 'Платеж успешно создан! Перенаправление на страницу оплаты...';
+                        setTimeout(() => {
+                            window.location.href = result.payment.confirmation.confirmation_url;
+                        }, 1000);
+                    } else {
+                        // Если есть ошибка в ответе
+                        errorMessage.textContent = result.error || 'Ошибка при создании платежа';
+                    }
+                } catch (error) {
+                    // Если произошла ошибка при запросе
+                    errorMessage.textContent = 'Ошибка при отправке запроса: ' + error.message;
+                } finally {
+                    // Скрываем индикатор загрузки
+                    loading.style.display = 'none';
+                    submitBtn.disabled = false;
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

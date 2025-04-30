@@ -135,6 +135,16 @@ async function startBot() {
     // Парсим тело запроса как JSON
     app.use(express.json());
     
+    // Добавляем обслуживание статических файлов
+    app.use(express.static(path.join(__dirname, 'public')));
+    
+    // Создаем директорию для публичных файлов, если её нет
+    const publicDir = path.join(__dirname, 'public');
+    if (!fs.existsSync(publicDir)) {
+      fs.mkdirSync(publicDir, { recursive: true });
+      console.log('Создана директория для публичных файлов:', publicDir);
+    }
+    
     // Добавим логирование запросов
     app.use((req, res, next) => {
       console.log(`Получен ${req.method} запрос на ${req.path}`);
@@ -192,6 +202,14 @@ async function startBot() {
       });
     });
     
+    // Подключаем маршруты для платежей
+    const paymentRoutes = require('./routes/paymentRoutes');
+    app.use('/payment', paymentRoutes);
+    
+    // Подключаем маршруты для ЮKassa
+    const yookassaRoutes = require('./routes/yookassaRoutes');
+    app.use('/yookassa', yookassaRoutes);
+    
     // Запускаем сервер
     const port = process.env.PORT || 3000;
     app.listen(port, () => {
@@ -213,72 +231,47 @@ async function startBot() {
   bot.onText(/\/start/, (msg) => handleStart(bot, msg));
   bot.onText(/\/help/, (msg) => handleHelp(bot, msg));
   bot.onText(/\/users/, (msg) => handleUsers(bot, msg));
+  bot.onText(/\/about/, (msg) => handleAbout(bot, msg));
+  bot.onText(/\/menu/, (msg) => handleMenuCommand(bot, msg));
   bot.onText(/\/tariff/, (msg) => handleShowTariff(bot, msg));
   bot.onText(/\/plans/, (msg) => handleShowPlans(bot, msg));
-  bot.onText(/\/about/, (msg) => handleAbout(bot, msg));
   
-  // Обработка текстовых сообщений
-  bot.on('message', async (msg) => {
-    if (msg.text && !msg.text.startsWith('/')) {
-      // Проверяем, является ли это запросом на принудительную обработку документа
-      const handled = await handleTextMessage(bot, msg);
-      
-      // Если сообщение было обработано, ничего больше не делаем
-      if (handled) {
-        return;
-      }
-      
-      // Вызываем обработчик команд из меню (кнопки)
-      handleMenuCommand(bot, msg);
-    }
-  });
-  
-  // Обработка документов
+  // Обработчик для документов
   bot.on('document', (msg) => handleDocument(bot, msg));
   
-  // Обработчик callback-запросов
-  bot.on('callback_query', async (query) => {
-    try {
-      const data = query.data;
-      
-      // Обработка выбора стороны договора
-      if (data.startsWith('select_party:')) {
-        await handlePartySelection(bot, query);
-        return;
-      }
-      
-      // Обработка callback-запросов для тарифов
-      await handleTariffCallback(bot, query);
-    } catch (error) {
-      console.error('Ошибка при обработке callback_query:', error);
-      try {
-        await bot.answerCallbackQuery(query.id, { 
-          text: 'Произошла ошибка при обработке запроса',
-          show_alert: true 
-        });
-      } catch (err) {
-        console.error('Ошибка при отправке ответа на callback_query:', err);
-      }
+  // Обработчик для текстовых сообщений
+  bot.on('text', (msg) => {
+    const isCommand = msg.text && msg.text.startsWith('/');
+    
+    if (!isCommand) {
+      handleTextMessage(bot, msg);
     }
   });
   
-  // Обработка ошибок
-  bot.on('error', (error) => {
-    console.error('Ошибка в работе Telegram бота:', error);
+  // Обработчик для callback_query (кнопок)
+  bot.on('callback_query', async (query) => {
+    const data = query.data;
+    
+    try {
+      console.log('Получен callback_query:', data);
+      
+      if (data.startsWith('tariff_')) {
+        await handleTariffCallback(bot, query);
+      } else if (data.startsWith('party_')) {
+        await handlePartySelection(bot, query);
+      }
+    } catch (error) {
+      console.error('Ошибка при обработке callback_query:', error);
+      
+      bot.answerCallbackQuery(query.id, {
+        text: 'Произошла ошибка при обработке запроса'
+      }).catch(err => {
+        console.error('Не удалось ответить на callback_query:', err.message);
+      });
+    }
   });
   
-  // Обработка polling_error
-  bot.on('polling_error', (error) => {
-    console.error('Ошибка polling:', error);
-  });
-  
-  // Обработка webhook_error
-  bot.on('webhook_error', (error) => {
-    console.error('Ошибка webhook:', error);
-  });
-  
-  console.log('Бот запущен в режиме', process.env.NODE_ENV || 'development', process.env.NODE_ENV === 'production' ? '(webhook)' : '(polling)');
-  console.log('Отправьте команду /start для начала работы');
+  return bot;
 }
 
 // Запускаем бота

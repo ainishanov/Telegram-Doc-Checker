@@ -5,6 +5,14 @@ const config = require('../config/config');
 // Настройка для ЮКассы
 const { yookassaShopId, yookassaSecretKey, yookassaTestMode } = config;
 
+// Отладочный вывод параметров платежной системы
+console.log('=== ДИАГНОСТИКА YOOKASSA ===');
+console.log('- ID Магазина:', yookassaShopId ? yookassaShopId : 'НЕ УСТАНОВЛЕН');
+console.log('- Секретный ключ:', yookassaSecretKey ? 'Установлен (начинается с ' + yookassaSecretKey.substring(0, 5) + '...)' : 'НЕ УСТАНОВЛЕН');
+console.log('- Тестовый режим:', yookassaTestMode === true ? 'Да' : 'Нет');
+console.log('- Возвратный URL:', config.yookassaReturnUrl || 'НЕ УСТАНОВЛЕН');
+console.log('=== КОНЕЦ ДИАГНОСТИКИ ===');
+
 // Класс для работы с API ЮКассы
 class YooKassaAPI {
   constructor(shopId, secretKey, isTestMode = false) {
@@ -292,6 +300,15 @@ async function createPayment(userId, planId, amount, description) {
     console.log('- Plan ID:', planId);
     console.log('- Amount:', amount);
     console.log('- Description:', description);
+    
+    // Повторная проверка загрузки конфигурации из-за возможного повреждения данных в памяти
+    console.log('=== ПРОВЕРКА КОНФИГУРАЦИИ YOOKASSA ПРИ СОЗДАНИИ ПЛАТЕЖА ===');
+    console.log('- yookassaShopId:', yookassaShopId || 'НЕ ОПРЕДЕЛЕН');
+    console.log('- yookassaSecretKey:', yookassaSecretKey ? `${yookassaSecretKey.substring(0, 5)}...` : 'НЕ ОПРЕДЕЛЕН');
+    console.log('- yookassaTestMode:', yookassaTestMode);
+    console.log('- yookassaReturnUrl:', config.yookassaReturnUrl);
+    console.log('=== КОНЕЦ ПРОВЕРКИ КОНФИГУРАЦИИ ===');
+    
     console.log('- Return URL:', config.yookassaReturnUrl);
     console.log('- Тестовый режим:', config.yookassaTestMode === true ? 'Да' : 'Нет');
     

@@ -15,6 +15,15 @@ const child_process = require('child_process');
 const util = require('util');
 const exec = util.promisify(child_process.exec);
 
+// Добавляем импорт pdf-to-png-converter для лучшей конвертации PDF в изображения
+let pdfToPng;
+try {
+  pdfToPng = require('pdf-to-png-converter').pdfToPng;
+  console.log('pdf-to-png-converter успешно загружен');
+} catch (error) {
+  console.log('pdf-to-png-converter не установлен, будут использованы базовые методы OCR');
+}
+
 /**
  * Загрузка файла из Telegram
  * @param {string} fileId - ID файла в Telegram
@@ -123,13 +132,13 @@ async function extractTextFromPdf(filePath) {
     const data = await pdfParse(dataBuffer, options);
     console.log(`Текст из PDF извлечен, размер: ${data.text.length} символов, количество страниц: ${data.numpages}`);
     
-    // Если текст не удалось извлечь или его очень мало, пробуем OCR
+    // Если текст не удалось извлечь или его очень мало, пробуем улучшенный OCR
     if (!data.text || data.text.trim() === '' || (data.text.length < 100 && data.numpages > 0)) {
-      console.log('Извлеченный текст пуст или слишком короткий, пробуем OCR распознавание...');
+      console.log('Извлеченный текст пуст или слишком короткий, пробуем улучшенное OCR распознавание...');
       
       // Проверяем, что PDF имеет хотя бы одну страницу
       if (data.numpages > 0) {
-        return await extractTextFromPdfUsingOcr(filePath, data.numpages);
+        return await extractTextFromPdfUsingImprovedOcr(filePath, data.numpages);
       } else {
         console.error('PDF не содержит страниц для OCR');
         return 'Не удалось извлечь текст из PDF. Документ может быть пустым или содержать только изображения.';
@@ -141,10 +150,10 @@ async function extractTextFromPdf(filePath) {
     console.error('Ошибка при извлечении текста из PDF:', error);
     console.error('Стек ошибки:', error.stack);
     
-    // Пробуем OCR как запасной вариант
+    // Пробуем улучшенный OCR как запасной вариант
     try {
-      console.log('Пробуем использовать OCR для извлечения текста...');
-      return await extractTextFromPdfUsingOcr(filePath);
+      console.log('Пробуем использовать улучшенный OCR для извлечения текста...');
+      return await extractTextFromPdfUsingImprovedOcr(filePath);
     } catch (ocrError) {
       console.error('Ошибка при попытке OCR:', ocrError);
       throw new Error(`Не удалось извлечь текст из PDF документа: ${error.message}`);
@@ -153,17 +162,16 @@ async function extractTextFromPdf(filePath) {
 }
 
 /**
- * Извлечение текста из PDF с использованием OCR
+ * Улучшенная функция извлечения текста из PDF с использованием OCR
  * @param {string} filePath - Путь к PDF файлу
  * @param {number} pageCount - Количество страниц (если известно)
  * @returns {Promise<string>} - Извлеченный текст
  */
-async function extractTextFromPdfUsingOcr(filePath, pageCount = 10) {
-  console.log(`Начало OCR обработки PDF: ${filePath}`);
+async function extractTextFromPdfUsingImprovedOcr(filePath, pageCount = 10) {
+  console.log(`Начало улучшенной OCR обработки PDF: ${filePath}`);
   
   try {
-    // Пытаемся получить текст из PDF с использованием pdfreader
-    // Это может работать с некоторыми PDF, где text-layer существует, но pdf-parse не смог его извлечь
+    // Сначала попробуем получить текст обычными методами
     let textFromPdfReader = await extractTextWithPdfReader(filePath);
     
     // Если удалось получить достаточно текста через pdfreader, используем его
@@ -172,18 +180,78 @@ async function extractTextFromPdfUsingOcr(filePath, pageCount = 10) {
       return textFromPdfReader;
     }
     
-    // Если не сработал pdfreader, используем Tesseract OCR
-    const maxPages = Math.min(pageCount || 10, 10); // Ограничиваем до 10 страниц для OCR
-    console.log(`Извлечение текста с помощью Tesseract OCR. Обрабатываем до ${maxPages} страниц`);
+    // Если не получилось и pdf-to-png-converter доступен, используем его для конвертации PDF в изображения
+    if (pdfToPng) {
+      console.log('Используем pdf-to-png-converter для преобразования PDF в изображения');
+      
+      // Создаем временную директорию для изображений
+      const tempDir = path.join(path.dirname(filePath), 'temp_ocr_images');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      // Конвертируем PDF страницы в изображения
+      const maxPages = Math.min(pageCount || 10, 10);
+      console.log(`Конвертируем ${maxPages} страниц PDF в изображения`);
+      
+      // Подготовим массив номеров страниц для обработки (в библиотеке нумерация начинается с 1)
+      const pagesToProcess = Array.from({ length: maxPages }, (_, i) => i + 1);
+      
+      // Конвертируем PDF в изображения 
+      const pngPages = await pdfToPng(filePath, {
+        viewportScale: 2.0, // Увеличенный масштаб для лучшего распознавания
+        outputFolder: tempDir, // Куда сохранять изображения
+        outputFileMask: 'page_${pageNumber}', // Шаблон для имени файла
+        pagesToProcess: pagesToProcess, // Какие страницы обрабатывать
+        verbosityLevel: 0 // Уровень логгирования
+      });
+      
+      // Инициализируем Tesseract для OCR
+      const worker = await createWorker('rus+eng');
+      console.log('Tesseract worker инициализирован');
+      
+      let fullText = '';
+      
+      // Обрабатываем каждое изображение с помощью OCR
+      for (const page of pngPages) {
+        try {
+          console.log(`Обработка OCR для страницы ${page.pageNumber}, путь: ${page.path}`);
+          // Распознаем текст на изображении
+          const { data: { text } } = await worker.recognize(page.path);
+          fullText += `\n--- Страница ${page.pageNumber} ---\n\n` + text + '\n\n';
+          
+          // Удаляем временное изображение, если оно создано на диске
+          if (page.path && fs.existsSync(page.path)) {
+            fs.unlinkSync(page.path);
+          }
+        } catch (pageError) {
+          console.error(`Ошибка при OCR обработке страницы ${page.pageNumber}:`, pageError);
+        }
+      }
+      
+      // Освобождаем ресурсы Tesseract
+      await worker.terminate();
+      
+      // Удаляем временную директорию, если она пуста
+      try {
+        const files = fs.readdirSync(tempDir);
+        if (files.length === 0) {
+          fs.rmdirSync(tempDir);
+        }
+      } catch (rmError) {
+        console.error('Ошибка при удалении временной директории:', rmError);
+      }
+      
+      if (fullText.length > 0) {
+        console.log(`Успешно извлечен текст с помощью OCR, длина: ${fullText.length}`);
+        return fullText;
+      }
+    }
     
-    // Запускаем OCR с Tesseract
+    // Если pdf-to-png-converter недоступен, используем стандартный метод OCR
+    console.log('Используем стандартный метод OCR');
     const worker = await createWorker('rus+eng');
     console.log('Tesseract worker инициализирован');
-    
-    // Поскольку у нас нет прямого способа генерировать изображения из PDF на Windows без зависимостей,
-    // предложим пользователю инструкции, но также выполним базовое OCR на первой странице, если возможно
-    
-    // Для полноценного OCR будет лучше реализовать это на сервере с поддержкой pdftoppm/poppler
     
     // Возвращаем информативное сообщение, но продолжаем анализировать документ с тем текстом, который удалось получить
     console.log('Возвращаем частичный текст и инструкции для пользователя');
@@ -199,9 +267,7 @@ async function extractTextFromPdfUsingOcr(filePath, pageCount = 10) {
     // Возвращаем извлеченный текст с уведомлением
     return baseText + `\n\n[ВНИМАНИЕ: Документ содержит текст в виде изображений. Анализ может быть неполным.]`;
   } catch (error) {
-    console.error('Ошибка при OCR обработке:', error);
-    // Даже при ошибке пытаемся продолжить обработку
-    // Это позволит боту проанализировать хотя бы ту часть текста, которую удалось извлечь
+    console.error('Ошибка при улучшенной OCR обработке:', error);
     return `Документ содержит текст в виде изображений, выполняется анализ на основе частично извлеченного текста.`;
   }
 }
