@@ -242,8 +242,21 @@ async function startBot() {
   // Обработчик для текстовых сообщений
   bot.on('text', (msg) => {
     const isCommand = msg.text && msg.text.startsWith('/');
+    const text = msg.text;
     
-    if (!isCommand) {
+    // Проверяем, является ли сообщение кнопкой меню
+    const isMenuButton = text === '📊 Мой тариф' || 
+                        text === '📋 Функции бота' || 
+                        text === 'ℹ️ О компании';
+    
+    console.log(`Получено текстовое сообщение: "${text}", isCommand: ${isCommand}, isMenuButton: ${isMenuButton}`);
+    
+    if (isMenuButton) {
+      // Если это кнопка меню, обрабатываем её с помощью handleMenuCommand
+      console.log(`Обработка кнопки меню: ${text}`);
+      handleMenuCommand(bot, msg);
+    } else if (!isCommand) {
+      // Если это не команда и не кнопка меню, обрабатываем как обычное текстовое сообщение
       handleTextMessage(bot, msg);
     }
   });
