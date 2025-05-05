@@ -624,6 +624,8 @@ function splitTextIntoParts(text, maxPartLength) {
 
 // Добавляем обработчик выбора стороны
 async function handlePartySelection(bot, query) {
+  console.log(`Получен callback запрос: ${query.data}`);
+  
   // Сразу отвечаем на callback query, чтобы Telegram не считал запрос просроченным
   await bot.answerCallbackQuery(query.id, {
     text: "Начинаю анализ договора..."
@@ -634,36 +636,77 @@ async function handlePartySelection(bot, query) {
   const data = query.data;
   const [action, user, party] = data.split(':');
 
+  console.log(`Обработка выбора стороны: action=${action}, user=${user}, party=${party}`);
+
   if (action !== 'select_party' || user !== userId) {
+    console.log('Несоответствие action или userId, выход из обработчика');
     return;
   }
 
   try {
+    console.log('Проверка наличия tempStorage...');
     if (!global.tempStorage) {
+      console.log('tempStorage не инициализирован, создаю новый объект');
       global.tempStorage = {};
     }
 
+    console.log(`Проверка данных пользователя в tempStorage для userId=${userId}`);
     const userData = global.tempStorage[userId];
     if (!userData || !userData.analysis) {
+      console.log('Данные анализа не найдены в tempStorage');
       await bot.answerCallbackQuery(query.id, { 
         text: 'Ошибка: данные анализа не найдены. Пожалуйста, отправьте документ повторно.',
         show_alert: true
       });
       return;
     }
+    
+    console.log('Данные анализа найдены, продолжаю обработку...');
 
+    console.log('Получение данных анализа и выбранной стороны...');
     const analysis = userData.analysis;
+    
+    // Проверка наличия необходимых данных в анализе
+    if (!analysis.party1 || !analysis.party2) {
+      console.error('Ошибка: в анализе отсутствуют данные о сторонах договора');
+      await bot.sendMessage(chatId, 'Ошибка: в анализе отсутствуют данные о сторонах договора. Пожалуйста, отправьте документ повторно.');
+      delete global.tempStorage[userId];
+      return;
+    }
+    
     const selectedParty = party === 'party1' ? analysis.party1 : analysis.party2;
     const otherParty = party === 'party1' ? analysis.party2 : analysis.party1;
     
+    console.log(`Выбрана сторона: ${selectedParty.role} (${selectedParty.name})`);
+    
+    // Проверка наличия анализа для выбранной стороны
+    if (!analysis.analysis || 
+        (party === 'party1' && !analysis.analysis.party1Analysis) || 
+        (party === 'party2' && !analysis.analysis.party2Analysis)) {
+      console.error('Ошибка: в анализе отсутствуют данные анализа для выбранной стороны');
+      await bot.sendMessage(chatId, 'Ошибка: в анализе отсутствуют данные анализа для выбранной стороны. Пожалуйста, отправьте документ повторно.');
+      delete global.tempStorage[userId];
+      return;
+    }
+    
     // Получаем анализ для выбранной стороны
     const partyAnalysis = party === 'party1' ? analysis.analysis.party1Analysis : analysis.analysis.party2Analysis;
+    console.log('Анализ для выбранной стороны получен');
 
-    // Удаляем сообщение с кнопками выбора
-    await bot.deleteMessage(chatId, query.message.message_id);
+    try {
+      console.log('Удаление сообщения с кнопками выбора...');
+      // Удаляем сообщение с кнопками выбора
+      await bot.deleteMessage(chatId, query.message.message_id).catch(err => {
+        console.error('Ошибка при удалении сообщения:', err.message);
+      });
+    } catch (deleteError) {
+      console.error('Ошибка при удалении сообщения:', deleteError);
+      // Продолжаем выполнение, даже если не удалось удалить сообщение
+    }
 
     // Если анализ был неполным из-за документа с изображениями
     if (analysis.incomplete) {
+      console.log('Отправка сообщения о неполном анализе из-за проблем с OCR...');
       // Отправляем сообщение с рекомендациями
       const incompleteMessage = `⚠️ *Анализ документа с изображениями*\n\n` +
         `Документ содержит текст в виде изображений, что затрудняет его полноценный анализ.\n\n` +
@@ -674,12 +717,18 @@ async function handlePartySelection(bot, query) {
         `   - https://www.onlineocr.net/ru/\n\n` +
         `Если у вас есть другая версия этого документа, отправьте её для более точного анализа.`;
         
-      await bot.sendMessage(chatId, incompleteMessage, { 
-        parse_mode: 'Markdown',
-        disable_web_page_preview: true 
-      });
+      try {
+        await bot.sendMessage(chatId, incompleteMessage, { 
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true 
+        });
+        console.log('Сообщение о неполном анализе отправлено');
+      } catch (sendError) {
+        console.error('Ошибка при отправке сообщения о неполном анализе:', sendError);
+      }
       
       // Очищаем временное хранилище
+      console.log('Очистка временного хранилища для userId:', userId);
       delete global.tempStorage[userId];
       
       return;
