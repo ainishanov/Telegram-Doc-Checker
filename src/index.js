@@ -255,10 +255,20 @@ async function startBot() {
     try {
       console.log('Получен callback_query:', data);
       
+      // Исправленная обработка всех типов кнопок
       if (data.startsWith('tariff_')) {
         await handleTariffCallback(bot, query);
       } else if (data.startsWith('party_')) {
         await handlePartySelection(bot, query);
+      } else if (data.startsWith('select_party:')) {
+        // Обработка выбора стороны договора в новом формате
+        console.log('Обработка выбора стороны договора:', data);
+        await handlePartySelection(bot, query);
+      } else {
+        console.log('Неизвестный тип callback_query:', data);
+        await bot.answerCallbackQuery(query.id, {
+          text: 'Неизвестный тип кнопки'
+        });
       }
     } catch (error) {
       console.error('Ошибка при обработке callback_query:', error);
