@@ -133,7 +133,7 @@ class AnthropicService {
           messages: [
             { 
               role: "user",
-              content: `Вот текст договора для анализа:\n\n${text}`
+              content: `проведи анализ договора:\n\n${text}`
             }
           ],
           temperature: 0.3, // Более низкая температура для более предсказуемых результатов
