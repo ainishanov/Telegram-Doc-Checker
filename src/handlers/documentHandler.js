@@ -1,4 +1,4 @@
-const { downloadTelegramFile, extractTextFromDocument } = require('../utils/documentParser');
+const { downloadTelegramFile, extractTextFromDocument, downloadTelegramPhoto } = require('../utils/documentParser');
 const anthropicService = require('../utils/anthropic');
 const { getUserSettings } = require('../models/userSettings');
 const { canUserMakeRequest, registerRequestUsage, getAllPlans, PLANS } = require('../models/userLimits');
@@ -1196,9 +1196,219 @@ function createIncompleteAnalysisTemplate(documentText, analysisTitle, isImageDe
   return template;
 }
 
+/**
+ * Обработчик фотографий для извлечения текста и анализа документов
+ * @param {Object} bot - Экземпляр бота
+ * @param {Object} msg - Сообщение от пользователя с фотографией
+ * @param {Object} options - Дополнительные опции
+ * @param {boolean} options.forceContract - Принудительно обработать как договор
+ */
+async function handlePhoto(bot, msg, options = {}) {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+  
+  // Получаем массив фотографий (разные размеры)
+  const photos = msg.photo;
+  // Берем фото с наилучшим качеством (последнее в массиве)
+  const fileId = photos[photos.length - 1].file_id;
+  
+  // Определяем имя файла на основе даты и времени
+  const fileName = `photo_${Date.now()}.jpg`;
+  const forceContract = options.forceContract || false;
+  
+  // Проверяем, если фото отправлено с подписью, содержащей ключевое слово "договор" или "контракт"
+  const hasForceKeyword = msg.caption && 
+    (/договор|контракт|соглашение|анализ/i).test(msg.caption.toLowerCase());
+  
+  // Если в подписи есть указание на договор, устанавливаем флаг принудительной обработки
+  const shouldForceContract = forceContract || hasForceKeyword;
+  
+  // Проверяем возможность проверки документа (доступность лимитов)
+  const verificationCheck = canUserMakeRequest(userId);
+  
+  if (!verificationCheck.allowed) {
+    if (verificationCheck.reason === 'subscription_inactive') {
+      // Требуется оплата
+      bot.sendMessage(
+        chatId,
+        '⚠️ *Требуется оплата*\n\nВаш тариф еще не оплачен. Используйте команду /payment для оплаты или /downgrade для возврата к бесплатному тарифу.',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    } else if (verificationCheck.reason === 'limit_reached') {
+      // Превышен лимит запросов
+      bot.sendMessage(
+        chatId,
+        `⚠️ *Превышен лимит запросов*\n\nВы достигли лимита проверок документов для вашего тарифа.\n\nИспользуйте команду /plans для просмотра и выбора тарифа с большим количеством проверок.`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+  }
+  
+  try {
+    console.log(`Начало обработки фотографии: ${fileName}`);
+    
+    // Отправляем сообщение о начале обработки
+    const processingMsg = await bot.sendMessage(
+      chatId, 
+      `Обрабатываю фотографию, это может занять некоторое время...`
+    );
+    
+    // Загружаем фото
+    const filePath = await downloadTelegramPhoto(fileId, bot, fileName);
+    
+    console.log(`Фото загружено: ${filePath}`);
+    
+    // Обновляем сообщение
+    await bot.editMessageText(
+      `Извлекаю текст из фотографии с помощью OCR...`, 
+      {
+        chat_id: chatId,
+        message_id: processingMsg.message_id
+      }
+    );
+    
+    // Извлекаем текст из фотографии с помощью OCR
+    console.log('Начинаю извлечение текста из фотографии...');
+    
+    let documentText;
+    try {
+      // Используем тот же метод extractTextFromDocument, который будет использовать OCR для изображений
+      documentText = await extractTextFromDocument(filePath);
+      console.log(`Текст успешно извлечен, размер: ${documentText ? documentText.length : 0} символов`);
+      
+      // Проверяем, что текст был успешно извлечен
+      if (!documentText || documentText.trim() === '') {
+        throw new Error('Текст на фотографии не обнаружен');
+      }
+      
+      // Проверяем, содержит ли текст сообщение об ошибке из модуля извлечения
+      if (documentText.startsWith('Не удалось извлечь текст')) {
+        throw new Error(documentText);
+      }
+    } catch (extractError) {
+      console.error('Ошибка при извлечении текста из фотографии:', extractError);
+      
+      let errorMessage = 'Произошла ошибка при извлечении текста из фотографии.';
+      
+      if (extractError.message.includes('не обнаружен')) {
+        errorMessage = 'Не удалось распознать текст на фотографии. Пожалуйста, убедитесь, что текст четко виден и повторите попытку с лучшим качеством фото.';
+      }
+      
+      await bot.editMessageText(
+        `❌ ${errorMessage}`, 
+        {
+          chat_id: chatId,
+          message_id: processingMsg.message_id
+        }
+      );
+      
+      console.log(`Отправлено сообщение об ошибке извлечения текста: ${errorMessage}`);
+      return;
+    }
+    
+    // Получаем настройки пользователя
+    const userSettings = getUserSettings(userId);
+    
+    // Предварительная проверка, является ли документ договором, если не задан forceContract
+    if (!shouldForceContract) {
+      await bot.editMessageText(
+        `Проверяю, является ли текст на фотографии договором...`, 
+        {
+          chat_id: chatId,
+          message_id: processingMsg.message_id
+        }
+      );
+      
+      // Проверка на договор
+      const isContract = await isContractDocument(documentText);
+      
+      if (!isContract.result) {
+        // Если в подписи нет указания на договор и текст не похож на договор
+        await bot.editMessageText(
+          `📝 Текст на фотографии не похож на договор или юридический документ.\n\nЕсли вы уверены, что это договор, отправьте фотографию с подписью "договор" для принудительного анализа.`, 
+          {
+            chat_id: chatId,
+            message_id: processingMsg.message_id
+          }
+        );
+        return;
+      }
+    }
+    
+    // Регистрируем использование запроса
+    registerRequestUsage(userId);
+    
+    // Обновляем сообщение
+    await bot.editMessageText(
+      `Анализирую документ на фотографии...`, 
+      {
+        chat_id: chatId,
+        message_id: processingMsg.message_id
+      }
+    );
+    
+    // Анализируем документ
+    try {
+      // Используем тот же метод для анализа, что и для обычных документов
+      const analysisResult = await analyzeDocumentWithSelectedModel(documentText);
+      
+      if (!analysisResult || !analysisResult.analysis) {
+        throw new Error('Не удалось выполнить анализ документа');
+      }
+      
+      // Отправляем результат анализа
+      await bot.editMessageText(
+        analysisResult.analysis, 
+        {
+          chat_id: chatId,
+          message_id: processingMsg.message_id,
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "Я - физлицо", callback_data: `party_individual:${chatId}` },
+                { text: "Я - юрлицо", callback_data: `party_legal:${chatId}` }
+              ]
+            ]
+          }
+        }
+      );
+      
+      // Сохраняем анализ в tempStorage для последующего использования
+      global.tempStorage.documentAnalysis[chatId] = {
+        text: documentText,
+        analysis: analysisResult.analysis,
+        timestamp: Date.now()
+      };
+      
+      console.log(`Анализ документа на фотографии успешно отправлен пользователю ${userId}`);
+    } catch (analysisError) {
+      console.error('Ошибка при анализе документа на фотографии:', analysisError);
+      
+      await bot.editMessageText(
+        `❌ Произошла ошибка при анализе документа: ${analysisError.message}`, 
+        {
+          chat_id: chatId,
+          message_id: processingMsg.message_id
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Ошибка при обработке фотографии:', error);
+    
+    bot.sendMessage(
+      chatId,
+      `❌ Произошла ошибка при обработке фотографии: ${error.message}`
+    );
+  }
+}
+
 module.exports = {
   handleDocument,
   handlePartySelection,
+  handlePhoto,
   isContractDocument,
   handleTextMessage
 }; 

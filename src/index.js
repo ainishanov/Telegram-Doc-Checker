@@ -8,7 +8,7 @@ const {
   setupPermanentMenu,
   handleAbout
 } = require('./handlers/commandHandlers');
-const { handleDocument, handlePartySelection, handleTextMessage } = require('./handlers/documentHandler');
+const { handleDocument, handlePartySelection, handleTextMessage, handlePhoto } = require('./handlers/documentHandler');
 const {
   handleShowTariff,
   handleShowPlans,
@@ -238,6 +238,9 @@ async function startBot() {
   
   // Обработчик для документов
   bot.on('document', (msg) => handleDocument(bot, msg));
+
+  // Обработчик для фотографий
+  bot.on('photo', (msg) => handlePhoto(bot, msg));
   
   // Обработчик для текстовых сообщений
   bot.on('text', (msg) => {

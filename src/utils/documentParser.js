@@ -522,7 +522,69 @@ async function extractTextFromDocument(filePath) {
   }
 }
 
+/**
+ * Загрузка фотографии из Telegram
+ * @param {string} fileId - ID файла в Telegram
+ * @param {Object} bot - Экземпляр Telegram бота
+ * @param {string} fileName - Имя файла для сохранения
+ * @returns {Promise<string>} - Путь к загруженному файлу
+ */
+async function downloadTelegramPhoto(fileId, bot, fileName) {
+  try {
+    console.log(`Начало загрузки фотографии с ID: ${fileId}`);
+    
+    // Получаем информацию о файле
+    const fileInfo = await bot.getFile(fileId);
+    const fileUrl = `https://api.telegram.org/file/bot${bot.token}/${fileInfo.file_path}`;
+    
+    console.log(`URL фотографии: ${fileUrl}`);
+    console.log(`Размер фотографии: ${fileInfo.file_size} байт`);
+    
+    // Создаем директорию для временных файлов, если она не существует
+    const tempDir = path.join(__dirname, '../../temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    // Создаем путь для сохранения файла
+    const filePath = path.join(tempDir, fileName || path.basename(fileInfo.file_path));
+    
+    // Загружаем файл
+    const fileStream = fs.createWriteStream(filePath);
+    
+    await new Promise((resolve, reject) => {
+      const request = https.get(fileUrl, (response) => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`Не удалось загрузить фотографию: ${response.statusCode}`));
+          return;
+        }
+        
+        pipeline(response, fileStream)
+          .then(() => resolve())
+          .catch(err => reject(err));
+      });
+      
+      request.on('error', (err) => {
+        reject(err);
+      });
+      
+      // Устанавливаем таймаут на загрузку файла
+      request.setTimeout(60000, () => {
+        request.abort();
+        reject(new Error('Таймаут загрузки фотографии (60 секунд)'));
+      });
+    });
+    
+    console.log(`Фотография успешно загружена: ${filePath}`);
+    return filePath;
+  } catch (error) {
+    console.error('Ошибка при загрузке фотографии:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   downloadTelegramFile,
+  downloadTelegramPhoto,
   extractTextFromDocument
-}; 
+};
