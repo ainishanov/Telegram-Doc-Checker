@@ -1405,10 +1405,72 @@ async function handlePhoto(bot, msg, options = {}) {
   }
 }
 
+/**
+ * Обработчик для принудительного анализа документа как договора
+ * @param {Object} bot - Экземпляр бота
+ * @param {Object} query - Callback-запрос
+ */
+async function handleForceContract(bot, query) {
+  const chatId = query.message.chat.id;
+  const messageId = query.message.message_id;
+  const userId = query.from.id.toString();
+  const data = query.data;
+  
+  try {
+    // Сначала отвечаем на запрос, чтобы убрать индикатор загрузки
+    await bot.answerCallbackQuery(query.id, {
+      text: "Начинаю анализ договора..."
+    });
+    
+    // Извлекаем идентификатор документа из callback_data
+    const shortId = data.replace('force_contract:', '');
+    
+    // Проверяем наличие глобального хранилища и идентификатора документа
+    if (!global.tempFileIdStorage || !global.tempFileIdStorage[shortId]) {
+      console.error(`Не удалось найти fileId для shortId: ${shortId}`);
+      await bot.sendMessage(chatId, 'Ошибка: не удалось найти документ. Пожалуйста, отправьте его заново.');
+      return;
+    }
+    
+    // Получаем file_id документа
+    const fileId = global.tempFileIdStorage[shortId];
+    
+    // Создаем новое сообщение для нашего пользователя с информацией о процессе
+    const processingMsg = await bot.sendMessage(
+      chatId, 
+      "Начинаю обработку документа как договора..."
+    );
+    
+    // Удаляем прежнее сообщение с кнопкой
+    await bot.deleteMessage(chatId, messageId);
+    
+    // Создаем фейковое сообщение для передачи в функцию обработки документа
+    const fakeDocMsg = {
+      chat: { id: chatId },
+      from: { id: userId },
+      document: { file_id: fileId },
+      _isForceContract: true  // Специальный флаг для принудительной обработки
+    };
+    
+    // Вызываем обработчик документа с флагом принудительной обработки
+    await handleDocument(bot, fakeDocMsg, { forceContract: true });
+    
+    // Удаляем запись из хранилища
+    delete global.tempFileIdStorage[shortId];
+    
+  } catch (error) {
+    console.error('Ошибка при обработке принудительного анализа документа:', error);
+    
+    await bot.sendMessage(chatId, 
+      '❌ Произошла ошибка при обработке документа. Пожалуйста, отправьте документ повторно с подписью "договор".'
+    );
+  }
+}
+
 module.exports = {
   handleDocument,
   handlePartySelection,
+  handleTextMessage,
   handlePhoto,
-  isContractDocument,
-  handleTextMessage
+  handleForceContract
 }; 

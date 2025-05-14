@@ -13,7 +13,7 @@
   "dependencies": {
     "@a2seven/yoo-checkout": "^1.1.4",
     "@anthropic-ai/sdk": "^0.17.1",
-    "axios": "^1.6.0",
+    "axios": "^1.9.0",
     "cheerio": "1.0.0-rc.12",
     "docx-parser": "^0.2.1",
     "dotenv": "^16.4.1",

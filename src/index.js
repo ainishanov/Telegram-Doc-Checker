@@ -8,12 +8,14 @@ const {
   setupPermanentMenu,
   handleAbout
 } = require('./handlers/commandHandlers');
-const { handleDocument, handlePartySelection, handleTextMessage, handlePhoto } = require('./handlers/documentHandler');
+const { handleDocument, handlePartySelection, handleTextMessage, handlePhoto, handleForceContract } = require('./handlers/documentHandler');
 const {
   handleShowTariff,
   handleShowPlans,
   handleTariffCallback
 } = require('./handlers/planHandlers');
+const express = require('express');
+const dotenv = require('dotenv');
 
 // Проверка наличия необходимых переменных окружения
 if (!config.telegramToken) {
@@ -129,7 +131,6 @@ async function startBot() {
   let expressAvailable = true;
   
   try {
-    const express = require('express');
     app = express();
     
     // Парсим тело запроса как JSON
@@ -272,7 +273,14 @@ async function startBot() {
       console.log('Получен callback_query:', data);
       
       // Исправленная обработка всех типов кнопок
-      if (data.startsWith('tariff_')) {
+      if (data.startsWith('tariff_') || 
+          data === 'show_tariff' || 
+          data === 'show_plans' || 
+          data === 'back_to_tariff' || 
+          data === 'activate_subscription' || 
+          data.startsWith('direct_activate_') || 
+          data.startsWith('select_plan_') || 
+          data.startsWith('confirm_plan_')) {
         await handleTariffCallback(bot, query);
       } else if (data.startsWith('party_')) {
         await handlePartySelection(bot, query);
@@ -280,6 +288,10 @@ async function startBot() {
         // Обработка выбора стороны договора в новом формате
         console.log('Обработка выбора стороны договора:', data);
         await handlePartySelection(bot, query);
+      } else if (data.startsWith('force_contract:')) {
+        // Обработка принудительного анализа документа как договора
+        console.log('Обработка принудительного анализа документа:', data);
+        await handleForceContract(bot, query);
       } else {
         console.log('Неизвестный тип callback_query:', data);
         await bot.answerCallbackQuery(query.id, {
