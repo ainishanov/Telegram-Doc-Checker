@@ -8,7 +8,9 @@
     "dev": "nodemon src/index.js",
     "postinstall": "npm list cheerio && node scripts/check-deps.js",
     "check-deps": "node scripts/check-deps.js",
-    "render-build": "npm install"
+    "render-build": "npm install",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "diagnostic": "node src/diagnostic-env.js"
   },
   "dependencies": {
     "@a2seven/yoo-checkout": "^1.1.4",
