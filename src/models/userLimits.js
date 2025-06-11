@@ -226,13 +226,24 @@ function getUserPlan(userId) {
 }
 
 /**
- * Проверить, может ли пользователь делать запросы
+ * Проверить возможность выполнения запроса
  * @param {string} userId - ID пользователя
  * @returns {Object} - Результат проверки
  */
 function canUserMakeRequest(userId) {
   const userData = getUserData(userId);
   const planInfo = getUserPlan(userId);
+  
+  // Специальная логика для новых пользователей: 1 бесплатная проверка
+  // Если пользователь только зарегистрировался и еще не использовал ни одной проверки
+  if (userData.requestsUsed === 0 && (!userData.plan || userData.plan === 'FREE')) {
+    return {
+      allowed: true,
+      reason: 'first_free_check',
+      requestsRemaining: 1,
+      isFirstFree: true
+    };
+  }
   
   // Для платных тарифов проверяем активность подписки
   if (planInfo.id !== 'FREE' && (!userData.subscriptionData || !userData.subscriptionData.active)) {

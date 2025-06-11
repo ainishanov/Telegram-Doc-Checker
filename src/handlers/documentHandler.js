@@ -491,6 +491,10 @@ async function handleDocument(bot, msg, options = {}) {
     
     console.log('Анализ завершен, формирую ответ...');
     
+    // Проверяем, была ли это первая бесплатная проверка
+    const beforeUsage = canUserMakeRequest(userId);
+    const isFirstFreeCheck = beforeUsage.isFirstFree;
+    
     // Регистрируем использование запроса
     registerRequestUsage(userId);
     
@@ -498,7 +502,9 @@ async function handleDocument(bot, msg, options = {}) {
     const updatedLimits = canUserMakeRequest(userId);
     let limitInfo = '';
     
-    if (updatedLimits.remainingRequests === 0) {
+    if (isFirstFreeCheck) {
+      limitInfo = '\n\n🎉 *Это была ваша бесплатная проверка!*\n\nДля продолжения использования бота выберите тариф с помощью команды /plans';
+    } else if (updatedLimits.remainingRequests === 0) {
       limitInfo = '\n\n⚠️ Это был ваш последний бесплатный запрос. Для продолжения использования бота приобретите платный тариф с помощью команды /upgrade.';
     } else if (updatedLimits.remainingRequests <= 2 && PLANS.FREE.requestLimit <= 3) {
       limitInfo = `\n\n⚠️ У вас осталось ${updatedLimits.remainingRequests} бесплатных запросов.`;
@@ -1091,6 +1097,10 @@ async function handleTextMessage(bot, msg) {
     // Анализируем документ
     const analysis = await analyzeDocumentWithSelectedModel(documentText);
     
+    // Проверяем, была ли это первая бесплатная проверка
+    const beforeUsage = canUserMakeRequest(userId);
+    const isFirstFreeCheck = beforeUsage.isFirstFree;
+    
     // Регистрируем использование запроса
     registerRequestUsage(userId);
     
@@ -1098,7 +1108,9 @@ async function handleTextMessage(bot, msg) {
     const updatedLimits = canUserMakeRequest(userId);
     let limitInfo = '';
     
-    if (updatedLimits.remainingRequests === 0) {
+    if (isFirstFreeCheck) {
+      limitInfo = '\n\n🎉 *Это была ваша бесплатная проверка!*\n\nДля продолжения использования бота выберите тариф с помощью команды /plans';
+    } else if (updatedLimits.remainingRequests === 0) {
       limitInfo = '\n\n⚠️ Это был ваш последний бесплатный запрос. Для продолжения использования бота приобретите платный тариф с помощью команды /upgrade.';
     } else if (updatedLimits.remainingRequests <= 2 && PLANS.FREE.requestLimit <= 3) {
       limitInfo = `\n\n⚠️ У вас осталось ${updatedLimits.remainingRequests} бесплатных запросов.`;
