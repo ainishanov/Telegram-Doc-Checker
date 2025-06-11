@@ -406,6 +406,13 @@ async function createPayment(userId, planId, amount, description) {
       },
       test: yookassaTestMode === true // Добавляем флаг тестового платежа
     };
+
+    // Если указан метод по умолчанию (например, sberbank), добавляем его в payment_method_data
+    if (config.yookassaDefaultMethod) {
+      paymentData.payment_method_data = {
+        type: config.yookassaDefaultMethod
+      };
+    }
     
     const payment = await yooKassa.createPayment(paymentData, idempotenceKey);
     

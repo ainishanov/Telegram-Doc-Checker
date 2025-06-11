@@ -11,6 +11,7 @@ const yookassaShopId = process.env.YOOKASSA_SHOP_ID || '';
 const yookassaSecretKey = process.env.YOOKASSA_SECRET_KEY || '';
 const yookassaReturnUrl = process.env.YOOKASSA_RETURN_URL || 'https://telegram-doc-checker.onrender.com/payment/success';
 const yookassaTestMode = process.env.YOOKASSA_TEST_MODE === 'true';
+const yookassaDefaultMethod = process.env.YOOKASSA_DEFAULT_METHOD || null;
 
 // Конфигурация для сохранения платежей (может использоваться локальное хранилище)
 const databaseEnabled = process.env.DATABASE_ENABLED === 'true';
@@ -57,6 +58,7 @@ const config = {
   yookassaSecretKey,
   yookassaTestMode,
   yookassaReturnUrl,
+  yookassaDefaultMethod,
   
   // Настройки для базы данных
   databaseEnabled,

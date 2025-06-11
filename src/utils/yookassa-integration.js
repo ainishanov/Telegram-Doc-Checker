@@ -47,6 +47,13 @@ async function createPayment(amount, description, metadata = {}) {
       metadata: metadata
     };
     
+    // Если указан метод по умолчанию (например, sberbank) – добавляем в объект
+    if (config.yookassaDefaultMethod) {
+      createPayloadObj.payment_method_data = {
+        type: config.yookassaDefaultMethod
+      };
+    }
+    
     // Если включен тестовый режим
     if (config.yookassaTestMode) {
       createPayloadObj.test = true;
