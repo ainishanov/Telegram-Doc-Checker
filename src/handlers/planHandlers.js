@@ -226,7 +226,7 @@ async function handleSelectPlan(bot, planId, msg) {
   // Для бесплатного тарифа сразу активируем его
   if (planId === 'FREE') {
     message += 'Бесплатный тариф сразу доступен для использования.\n';
-    message += `У вас есть ${result.plan.requestLimit} проверки договоров бесплатно.\n`;
+    message += `У вас есть ${result.plan.requestLimit} проверок договоров навсегда.\n`;
     
     // Формируем клавиатуру
     const keyboard = {
@@ -252,7 +252,7 @@ async function handleSelectPlan(bot, planId, msg) {
   if (result.plan.requestLimit === Infinity) {
     message += `Количество договоров: *Безлимитно*\n\n`;
   } else {
-    message += `Количество договоров: *${result.plan.requestLimit}*\n\n`;
+    message += `Количество договоров: *${result.plan.requestLimit} в месяц*\n\n`;
   }
   
   message += 'Нажмите кнопку "Активировать" для имитации оплаты (это демо-версия).';
@@ -323,7 +323,7 @@ async function handleActivateSubscription(bot, msg) {
     if (planInfo.requestLimit === Infinity) {
       message += `Доступно договоров: *Безлимитно*\n\n`;
     } else {
-      message += `Доступно договоров: *${planInfo.requestLimit}*\n\n`;
+      message += `Доступно договоров: *${planInfo.requestLimit} в месяц*\n\n`;
     }
     
     message += 'Спасибо за поддержку нашего сервиса!';
