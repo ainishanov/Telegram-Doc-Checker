@@ -3,7 +3,9 @@ const config = require('./config/config');
 const { 
   handleStart, 
   handleHelp,
-  handleUsers,
+  handleAdminUsers,
+  handleAdminStats,
+  handleAdminCallback,
   handleMenuCommand,
   setupPermanentMenu,
   handleAbout
@@ -231,7 +233,8 @@ async function startBot() {
   // Обработчики команд
   bot.onText(/\/start/, (msg) => handleStart(bot, msg));
   bot.onText(/\/help/, (msg) => handleHelp(bot, msg));
-  bot.onText(/\/users/, (msg) => handleUsers(bot, msg));
+  bot.onText(/\/users/, (msg) => handleAdminUsers(bot, msg));
+  bot.onText(/\/stats/, (msg) => handleAdminStats(bot, msg));
   bot.onText(/\/about/, (msg) => handleAbout(bot, msg));
   bot.onText(/\/menu/, (msg) => handleMenuCommand(bot, msg));
   bot.onText(/\/tariff/, (msg) => handleShowTariff(bot, msg));
@@ -273,7 +276,10 @@ async function startBot() {
       console.log('Получен callback_query:', data);
       
       // Исправленная обработка всех типов кнопок
-      if (data.startsWith('tariff_') || 
+      if (data.startsWith('admin_')) {
+        // Административные callback-запросы
+        await handleAdminCallback(bot, query);
+      } else if (data.startsWith('tariff_') || 
           data === 'show_tariff' || 
           data === 'show_plans' || 
           data === 'back_to_tariff' || 
