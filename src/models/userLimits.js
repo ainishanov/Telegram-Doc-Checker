@@ -36,11 +36,11 @@ const PLANS = {
     id: 'FREE',
     name: 'Бесплатный',
     price: 0,
-    requestLimit: 5,
+    requestLimit: 1,
     duration: 0, // бессрочно
-    description: 'Базовый анализ договоров с лимитом 5 документов навсегда.',
+    description: 'Базовый анализ договоров с лимитом 1 документ навсегда.',
     features: [
-      '5 проверок договоров бессрочно'
+      '1 проверка договора бесплатно навсегда'
     ]
   },
   BASIC: {
@@ -69,7 +69,7 @@ const PLANS = {
     id: 'UNLIMITED',
     name: 'Безлимитный',
     price: 4990,
-    requestLimit: Infinity,
+    requestLimit: Number.MAX_SAFE_INTEGER,
     duration: 30, // 30 дней
     description: 'Неограниченное количество проверок договоров в месяц.',
     features: [

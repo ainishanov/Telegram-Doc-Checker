@@ -25,7 +25,7 @@ async function handleShowTariff(bot, msg) {
   let message = `*Ваш текущий тариф: ${planInfo.name}*\n\n`;
   
   // Информация о количестве проверок договоров
-  if (planInfo.requestLimit === Infinity) {
+  if (planInfo.requestLimit >= Number.MAX_SAFE_INTEGER) {
     message += '📊 *Количество проверок договоров:* Неограниченно\n';
   } else {
     message += `📊 *Использовано проверок:* ${planInfo.requestsUsed} из ${planInfo.requestLimit}\n`;
@@ -95,7 +95,7 @@ async function handleShowPlans(bot, msg) {
     message += '\n';
     
     // Информация о количестве договоров
-    if (plan.requestLimit === Infinity) {
+    if (plan.requestLimit >= Number.MAX_SAFE_INTEGER) {
       message += '• Неограниченное количество проверок договоров\n';
     } else {
       if (plan.id === 'FREE') {
@@ -157,7 +157,7 @@ async function handleShowPlanDetails(bot, planId, msg) {
   message += `💰 Стоимость: *${plan.price} ₽*\n`;
   message += `⏱ Период: *${plan.duration} дней*\n\n`;
   
-  if (plan.requestLimit === Infinity) {
+  if (plan.requestLimit >= Number.MAX_SAFE_INTEGER) {
     message += `📊 Количество проверок договоров: *Неограниченно*\n\n`;
   } else {
     message += `📊 Количество проверок договоров: *${plan.requestLimit} в месяц*\n\n`;
@@ -249,7 +249,7 @@ async function handleSelectPlan(bot, planId, msg) {
   message += `Для активации тарифа необходимо оплатить подписку.\n\n`;
   message += `Стоимость: *${result.plan.price} ₽* за месяц\n`;
   
-  if (result.plan.requestLimit === Infinity) {
+  if (result.plan.requestLimit >= Number.MAX_SAFE_INTEGER) {
     message += `Количество договоров: *Безлимитно*\n\n`;
   } else {
     message += `Количество договоров: *${result.plan.requestLimit} в месяц*\n\n`;
@@ -320,7 +320,7 @@ async function handleActivateSubscription(bot, msg) {
     message += `Стоимость: *${planInfo.price} ₽*\n`;
     message += `Период: с ${startDate} по ${endDate}\n\n`;
     
-    if (planInfo.requestLimit === Infinity) {
+    if (planInfo.requestLimit >= Number.MAX_SAFE_INTEGER) {
       message += `Доступно договоров: *Безлимитно*\n\n`;
     } else {
       message += `Доступно договоров: *${planInfo.requestLimit} в месяц*\n\n`;
@@ -410,7 +410,7 @@ async function handleDirectActivation(bot, planId, msg) {
       message += `💰 Стоимость: *${PLANS[planId].price} ₽*\n`;
       message += `📅 Период: *${PLANS[planId].duration} дней*\n\n`;
       
-      if (PLANS[planId].requestLimit === Infinity) {
+      if (PLANS[planId].requestLimit >= Number.MAX_SAFE_INTEGER) {
         message += `📊 Количество проверок договоров: *Неограниченно*\n\n`;
       } else {
         message += `📊 Количество проверок договоров: *${PLANS[planId].requestLimit} в месяц*\n\n`;
