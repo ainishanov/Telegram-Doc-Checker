@@ -50,13 +50,6 @@ async function handleShowTariff(bot, msg) {
     inline_keyboard: []
   };
   
-  // Кнопка активации для неактивных платных тарифов
-  if (planInfo.id !== 'FREE' && (!userData.subscriptionData || !userData.subscriptionData.active)) {
-    keyboard.inline_keyboard.push([
-      { text: '💳 Активировать тариф', callback_data: 'activate_subscription' }
-    ]);
-  }
-  
   // Кнопка смены тарифа
   keyboard.inline_keyboard.push([
     { text: '📋 Сменить тариф', callback_data: 'show_plans' }
@@ -261,9 +254,6 @@ async function handleSelectPlan(bot, planId, msg) {
   const keyboard = {
     inline_keyboard: [
       [
-        { text: '💳 Активировать', callback_data: 'activate_subscription' }
-      ],
-      [
         { text: 'Активировать позже', callback_data: 'show_tariff' }
       ]
     ]
@@ -274,75 +264,6 @@ async function handleSelectPlan(bot, planId, msg) {
     parse_mode: 'Markdown',
     reply_markup: keyboard
   });
-}
-
-/**
- * Обработчик активации подписки
- * @param {Object} bot - Экземпляр Telegram бота 
- * @param {Object} msg - Сообщение от пользователя
- */
-async function handleActivateSubscription(bot, msg) {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
-  
-  // Получаем информацию о текущем тарифе пользователя
-  const planInfo = getUserPlan(userId);
-  
-  // Проверяем, что тариф платный
-  if (planInfo.id === 'FREE') {
-    await bot.sendMessage(chatId, '❌ Нельзя активировать подписку для бесплатного тарифа.');
-    return;
-  }
-  
-  // Сообщаем о начале имитации оплаты
-  await bot.sendMessage(chatId, 
-    '*Имитация процесса оплаты*\n\nОбрабатываем платеж...',
-    { parse_mode: 'Markdown' }
-  );
-  
-  // Имитация задержки обработки платежа
-  setTimeout(async () => {
-    // Активируем подписку
-    const result = activateSubscription(userId);
-    
-    if (!result.success) {
-      await bot.sendMessage(chatId, `❌ Ошибка активации: ${result.message}`);
-      return;
-    }
-    
-    // Форматируем даты
-    const startDate = new Date(result.subscription.startDate).toLocaleDateString('ru-RU');
-    const endDate = new Date(result.subscription.endDate).toLocaleDateString('ru-RU');
-    
-    // Формируем сообщение об успешной активации
-    let message = `🎉 *Подписка успешно активирована!*\n\n`;
-    message += `Тариф: *${planInfo.name}*\n`;
-    message += `Стоимость: *${planInfo.price} ₽*\n`;
-    message += `Период: с ${startDate} по ${endDate}\n\n`;
-    
-    if (planInfo.requestLimit >= Number.MAX_SAFE_INTEGER) {
-      message += `Доступно договоров: *Безлимитно*\n\n`;
-    } else {
-      message += `Доступно договоров: *${planInfo.requestLimit} в месяц*\n\n`;
-    }
-    
-    message += 'Спасибо за поддержку нашего сервиса!';
-    
-    // Формируем клавиатуру
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: 'Просмотреть мой тариф', callback_data: 'show_tariff' }
-        ]
-      ]
-    };
-    
-    // Отправляем сообщение
-    await bot.sendMessage(chatId, message, {
-      parse_mode: 'Markdown',
-      reply_markup: keyboard
-    });
-  }, 2000); // Имитация задержки 2 секунды
 }
 
 /**
@@ -484,13 +405,6 @@ async function handleTariffCallback(bot, query) {
     if (data === 'back_to_tariff') {
       await bot.deleteMessage(chatId, messageId);
       await handleShowTariff(bot, query.message);
-      return;
-    }
-    
-    // Активировать подписку
-    if (data === 'activate_subscription') {
-      await bot.deleteMessage(chatId, messageId);
-      await handleActivateSubscription(bot, query.message);
       return;
     }
     
