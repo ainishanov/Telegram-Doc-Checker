@@ -75,6 +75,18 @@ const PLANS = {
     features: [
       'Неограниченное количество проверок договоров в месяц'
     ]
+  },
+  TEST1RUB: {
+    id: 'TEST1RUB',
+    name: 'Тестовый тариф',
+    price: 1,
+    requestLimit: 10,
+    duration: 7, // 7 дней
+    description: 'Тестовый тариф для проверки оплаты. 10 проверок за 1 рубль на 7 дней.',
+    features: [
+      '10 проверок договоров за 1 рубль',
+      'Действует 7 дней'
+    ]
   }
 };
 
@@ -437,8 +449,12 @@ function activateSubscription(userId) {
  * Получить информацию обо всех доступных тарифах
  * @returns {Array} - Массив доступных тарифов
  */
-function getAllPlans() {
-  return Object.values(PLANS);
+function getAllPlans(userId) {
+  const plans = [PLANS.FREE, PLANS.BASIC, PLANS.PRO, PLANS.UNLIMITED];
+  if (userId === '117958330') {
+    plans.splice(1, 0, PLANS.TEST1RUB); // Вставляем тестовый тариф после FREE
+  }
+  return plans;
 }
 
 /**

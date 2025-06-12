@@ -69,9 +69,10 @@ async function handleShowTariff(bot, msg) {
  */
 async function handleShowPlans(bot, msg) {
   const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
   
   // Получаем список всех доступных тарифов
-  const plans = getAllPlans();
+  const plans = getAllPlans(userId);
   
   // Формируем сообщение со списком тарифов
   let message = '*Доступные тарифы:*\n\n';
