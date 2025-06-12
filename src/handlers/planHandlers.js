@@ -443,6 +443,36 @@ async function handleTariffCallback(bot, query) {
       return;
     }
     
+    // Проверка статуса платежа
+    if (data.startsWith('check_payment_')) {
+      const paymentId = data.replace('check_payment_', '');
+      await bot.deleteMessage(chatId, messageId);
+      try {
+        const { checkPaymentStatus, updateUserPlanAfterPayment } = require('../utils/payment');
+        const payment = await checkPaymentStatus(paymentId);
+        if (payment && payment.status === 'succeeded' && payment.paid) {
+          const userId = query.from.id.toString();
+          const planId = payment.metadata?.planId;
+          if (planId) {
+            const updateResult = await updateUserPlanAfterPayment(userId, planId, paymentId);
+            if (updateResult.success) {
+              await bot.sendMessage(chatId, `🎉 Оплата подтверждена! Тариф *${planId}* активирован.`, { parse_mode: 'Markdown' });
+            } else {
+              await bot.sendMessage(chatId, `⚠️ Ошибка активации тарифа: ${updateResult.message}`);
+            }
+          } else {
+            await bot.sendMessage(chatId, '⚠️ В данных платежа отсутствует planId. Обратитесь в поддержку.');
+          }
+        } else {
+          await bot.sendMessage(chatId, 'Платеж еще не завершен. Попробуйте позже.');
+        }
+      } catch (error) {
+        console.error('Ошибка при проверке платежа:', error);
+        await bot.sendMessage(chatId, '❌ Произошла ошибка при проверке платежа.');
+      }
+      return;
+    }
+    
   } catch (error) {
     console.error('Ошибка при обработке запроса:', error);
     await bot.sendMessage(chatId, 'Произошла ошибка при обработке запроса. Попробуйте еще раз.');

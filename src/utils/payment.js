@@ -517,6 +517,8 @@ function processNotification(notification) {
     }
     
     const result = {
+      success: true,
+      event: notification.event,
       paymentId: payment.id,
       status: payment.status,
       paid: payment.paid,
