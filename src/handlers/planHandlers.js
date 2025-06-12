@@ -15,7 +15,7 @@ const {
  */
 async function handleShowTariff(bot, msg) {
   const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
+  let userId = msg.from && !msg.from.is_bot ? msg.from.id.toString() : chatId.toString();
   
   // Получаем информацию о текущем тарифе пользователя
   const planInfo = getUserPlan(userId);
@@ -69,7 +69,7 @@ async function handleShowTariff(bot, msg) {
  */
 async function handleShowPlans(bot, msg) {
   const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
+  let userId = msg.from && !msg.from.is_bot ? msg.from.id.toString() : chatId.toString();
   
   // Получаем список всех доступных тарифов
   const plans = getAllPlans(userId);
@@ -213,7 +213,7 @@ async function handleShowPlanDetails(bot, planId, msg) {
  */
 async function handleSelectPlan(bot, planId, msg) {
   const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
+  let userId = msg.from && !msg.from.is_bot ? msg.from.id.toString() : chatId.toString();
   
   // Меняем тариф пользователя
   const result = changePlan(userId, planId);
@@ -285,7 +285,7 @@ async function handleSelectPlan(bot, planId, msg) {
  */
 async function handleDirectActivation(bot, planId, msg) {
   const chatId = msg.chat.id;
-  const userId = msg.from.id.toString();
+  let userId = msg.from && !msg.from.is_bot ? msg.from.id.toString() : chatId.toString();
   
   console.log(`[DEBUG] Начало прямой активации тарифа ${planId} для пользователя ${userId}`);
   
@@ -448,7 +448,8 @@ async function handleTariffCallback(bot, query) {
       const paymentId = data.replace('check_payment_', '');
       await bot.deleteMessage(chatId, messageId);
       try {
-        const { checkPaymentStatus, updateUserPlanAfterPayment } = require('../utils/payment');
+        const { checkPaymentStatus } = require('../utils/payment');
+        const { updateUserPlanAfterPayment } = require('../models/userLimits');
         const payment = await checkPaymentStatus(paymentId);
         if (payment && payment.status === 'succeeded' && payment.paid) {
           const userId = query.from.id.toString();
