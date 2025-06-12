@@ -284,6 +284,32 @@ router.post('/webhook', async (req, res) => {
         case 'refund.succeeded':
           // Возврат выполнен
           console.log('💰 Возврат выполнен:', data.id);
+          
+          // Получаем метаданные для деактивации тарифа
+          const refundUserId = data.metadata?.userId;
+          
+          if (refundUserId) {
+            console.log(`[INFO] Обработка возврата для пользователя ${refundUserId}, возврат на тариф FREE`);
+            
+            try {
+              // Импортируем функцию для изменения тарифа
+              const { changePlan } = require('../models/userLimits');
+              
+              // Возвращаем пользователя на бесплатный тариф
+              const downgradeResult = await changePlan(refundUserId, 'FREE');
+              
+              if (downgradeResult.success) {
+                console.log(`[SUCCESS] ✅ Пользователь ${refundUserId} переведен на тариф FREE после возврата ${data.id}`);
+              } else {
+                console.error(`[ERROR] Ошибка перевода на FREE тариф: ${downgradeResult.message}`);
+              }
+            } catch (refundError) {
+              console.error('[ERROR] Критическая ошибка при обработке возврата:', refundError);
+            }
+          } else {
+            console.warn('[WARN] В метаданных возврата отсутствует userId');
+            console.warn('- Metadata:', JSON.stringify(data.metadata));
+          }
           break;
           
         default:

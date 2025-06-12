@@ -2,14 +2,15 @@ const TelegramBot = require('node-telegram-bot-api');
 const config = require('./config/config');
 const { 
   handleStart, 
-  handleHelp,
-  handleAdminUsers,
-  handleAdminStats,
-  handleAdminCallback,
+  handleHelp, 
+  handleAdminUsers, 
+  handleAdminStats, 
+  handleAdminCallback, 
   handleMenuCommand,
   setupPermanentMenu,
   handleAbout,
-  handleActivateUser
+  handleActivateUser,
+  handleRefundUser
 } = require('./handlers/commandHandlers');
 const { handleDocument, handlePartySelection, handleTextMessage, handlePhoto, handleForceContract } = require('./handlers/documentHandler');
 const {
@@ -241,6 +242,7 @@ async function startBot() {
   bot.onText(/\/tariff/, (msg) => handleShowTariff(bot, msg));
   bot.onText(/\/plans/, (msg) => handleShowPlans(bot, msg));
   bot.onText(/\/activate_user/, (msg) => handleActivateUser(bot, msg));
+bot.onText(/\/refund_user/, (msg) => handleRefundUser(bot, msg));
   
   // Обработчик для документов
   bot.on('document', (msg) => handleDocument(bot, msg));

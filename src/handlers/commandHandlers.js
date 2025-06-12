@@ -44,7 +44,8 @@ function setupPermanentMenu(bot) {
       ...userCommands,
       { command: '/users', description: 'Список пользователей (админ)' },
       { command: '/stats', description: 'Статистика бота (админ)' },
-      { command: '/activate_user', description: 'Активация подписки пользователя (админ)' }
+      { command: '/activate_user', description: 'Активация подписки пользователя (админ)' },
+      { command: '/refund_user', description: 'Перевод пользователя на FREE после возврата (админ)' }
     ];
 
     // Устанавливаем команды для обычных пользователей (по умолчанию)
@@ -658,7 +659,8 @@ async function setupAdminCommands(bot, userId) {
       { command: '/about', description: 'Информация о компании' },
       { command: '/users', description: 'Список пользователей (админ)' },
       { command: '/stats', description: 'Статистика бота (админ)' },
-      { command: '/activate_user', description: 'Активация подписки пользователя (админ)' }
+      { command: '/activate_user', description: 'Активация подписки пользователя (админ)' },
+      { command: '/refund_user', description: 'Перевод пользователя на FREE после возврата (админ)' }
     ];
 
     await bot.setMyCommands(adminCommands, { scope: { type: 'chat', chat_id: userId } });
@@ -760,6 +762,91 @@ const handleActivateUser = async (bot, msg) => {
   }
 };
 
+/**
+ * Обработчик команды /refund_user - перевод пользователя на FREE после возврата (только для админов)
+ * Использование: /refund_user USER_ID
+ * @param {Object} bot - Экземпляр бота 
+ * @param {Object} msg - Сообщение от пользователя
+ */
+const handleRefundUser = async (bot, msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+  
+  // Проверяем, является ли пользователь администратором
+  if (!config.adminIds.includes(userId)) {
+    await bot.sendMessage(chatId, '❌ У вас нет прав для выполнения этой команды.');
+    return;
+  }
+  
+  try {
+    const commandArgs = msg.text.split(' ').slice(1); // Убираем /refund_user
+    
+    if (commandArgs.length < 1) {
+      await bot.sendMessage(chatId, `
+💰 *Команда перевода на FREE тариф после возврата*
+
+*Использование:* \`/refund_user USER_ID\`
+
+*Что делает команда:*
+• Переводит пользователя на бесплатный тариф
+• Деактивирует платную подписку
+• Сбрасывает лимиты до бесплатных
+• Записывает информацию о возврате
+
+*Пример:* \`/refund_user 117958330\`
+      `, { parse_mode: 'Markdown' });
+      return;
+    }
+    
+    const targetUserId = commandArgs[0];
+    
+    // Импортируем функции для работы с пользовательскими данными
+    const { getUserData, saveUserData, PLANS } = require('../models/userLimits');
+    
+    // Получаем данные пользователя
+    const userData = getUserData(targetUserId);
+    
+    // Сохраняем информацию о старом тарифе для логирования
+    const oldPlan = userData.plan;
+    const oldSubscription = userData.subscriptionData;
+    
+    // Переводим на FREE тариф
+    userData.plan = 'FREE';
+    userData.requestsUsed = 0; // Сбрасываем счетчик запросов 
+    userData.subscriptionData = {
+      active: false,
+      planId: 'FREE',
+      endDate: null,
+      paymentStatus: 'refunded',
+      refundedAt: new Date().toISOString(),
+      refundedBy: userId, // ID администратора, который сделал возврат
+      previousPlan: oldPlan,
+      previousSubscription: oldSubscription
+    };
+    
+    // Сохраняем обновленные данные
+    saveUserData(targetUserId, userData);
+    
+    // Отправляем подтверждение администратору
+    await bot.sendMessage(chatId, `
+💰 *Возврат успешно обработан!*
+
+👤 **Пользователь:** ${targetUserId}
+🔄 **Действие:** Переведен на тариф FREE
+📦 **Предыдущий план:** ${oldPlan}
+📅 **Дата возврата:** ${new Date().toLocaleDateString('ru-RU')}
+
+Подписка деактивирована, пользователь переведен на бесплатный тариф.
+    `, { parse_mode: 'Markdown' });
+    
+    console.log(`[ADMIN] Администратор ${userId} обработал возврат для пользователя ${targetUserId}, план ${oldPlan} -> FREE`);
+    
+  } catch (error) {
+    console.error('Ошибка при обработке возврата:', error);
+    await bot.sendMessage(chatId, '❌ Произошла ошибка при обработке возврата.');
+  }
+};
+
 module.exports = {
   handleStart,
   handleHelp,
@@ -770,5 +857,6 @@ module.exports = {
   setupPermanentMenu,
   setupAdminCommands,
   handleAbout,
-  handleActivateUser
+  handleActivateUser,
+  handleRefundUser
 }; 

@@ -462,6 +462,32 @@ router.post('/notifications', async (req, res) => {
       }
 
       console.log(`[SUCCESS] ✅ Успешно обработано уведомление о платеже ${paymentId} для пользователя ${userId}, тариф ${planId} активирован`);
+    } else if (event === 'refund.succeeded') {
+      // Обработка возврата средств
+      const { userId, planId } = metadata;
+      
+      if (userId) {
+        console.log(`[INFO] Обработка возврата для пользователя ${userId}, возврат на тариф FREE`);
+        
+        try {
+          // Импортируем функцию для изменения тарифа
+          const { changePlan } = require('../models/userLimits');
+          
+          // Возвращаем пользователя на бесплатный тариф
+          const downgradeResult = await changePlan(userId, 'FREE');
+          
+          if (downgradeResult.success) {
+            console.log(`[SUCCESS] ✅ Пользователь ${userId} переведен на тариф FREE после возврата ${paymentId}`);
+          } else {
+            console.error(`[ERROR] Ошибка перевода на FREE тариф: ${downgradeResult.message}`);
+          }
+        } catch (refundError) {
+          console.error('[ERROR] Критическая ошибка при обработке возврата:', refundError);
+        }
+      } else {
+        console.warn('[WARN] В метаданных возврата отсутствует userId');
+        console.warn('- Metadata:', JSON.stringify(metadata));
+      }
     } else {
       console.log(`[INFO] Получено событие ${event} со статусом ${status} - обработка не требуется`);
     }
