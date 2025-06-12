@@ -35,7 +35,9 @@ function setupPermanentMenu(bot) {
       { command: '/tariff', description: 'Проверить текущий тариф' },
       { command: '/plans', description: 'Доступные тарифные планы' },
       { command: '/help', description: 'Список функций бота' },
-      { command: '/about', description: 'Информация о компании' }
+      { command: '/about', description: 'Информация о компании' },
+      { command: '/users', description: 'Список пользователей (админ)' },
+      { command: '/stats', description: 'Статистика бота (админ)' }
     ]).then(() => {
       console.log('[INFO] Команды бота успешно установлены.');
     }).catch((error) => {
@@ -134,7 +136,10 @@ const handleStart = async (bot, msg) => {
  * @param {Object} msg - Сообщение от пользователя
  */
 const handleHelp = async (bot, msg) => {
-  const helpText = `
+  const userId = msg.from.id.toString();
+  const isAdmin = config.adminIds.includes(userId);
+  
+  let helpText = `
 🤖 *Команды бота:*
 
 /start - Начать работу с ботом
@@ -147,6 +152,15 @@ const handleHelp = async (bot, msg) => {
 Отправьте документ в формате PDF или DOC/DOCX для анализа.
 После загрузки документа выберите свою роль в договоре для получения анализа.
 `;
+
+  if (isAdmin) {
+    helpText += `
+
+🛠 *Административные команды:*
+/users - Показать список последних пользователей
+/stats - Показать подробную статистику пользователей и тарифов
+`;
+  }
 
   await bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
 };
