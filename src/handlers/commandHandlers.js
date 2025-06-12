@@ -30,19 +30,38 @@ function setupPermanentMenu(bot) {
   };
 
   try {
-    bot.setMyCommands([
+    // Команды для обычных пользователей
+    const userCommands = [
       { command: '/start', description: 'Начать работу с ботом' },
       { command: '/tariff', description: 'Проверить текущий тариф' },
       { command: '/plans', description: 'Доступные тарифные планы' },
       { command: '/help', description: 'Список функций бота' },
-      { command: '/about', description: 'Информация о компании' },
+      { command: '/about', description: 'Информация о компании' }
+    ];
+
+    // Команды для администраторов (включают административные)
+    const adminCommands = [
+      ...userCommands,
       { command: '/users', description: 'Список пользователей (админ)' },
       { command: '/stats', description: 'Статистика бота (админ)' }
-    ]).then(() => {
-      console.log('[INFO] Команды бота успешно установлены.');
+    ];
+
+    // Устанавливаем команды для обычных пользователей (по умолчанию)
+    bot.setMyCommands(userCommands).then(() => {
+      console.log('[INFO] Команды для пользователей успешно установлены.');
     }).catch((error) => {
-      console.error('[ERROR] Не удалось установить команды бота:', error.message);
+      console.error('[ERROR] Не удалось установить команды для пользователей:', error.message);
     });
+
+    // Устанавливаем команды для каждого администратора
+    config.adminIds.forEach(adminId => {
+      bot.setMyCommands(adminCommands, { scope: { type: 'chat', chat_id: adminId } }).then(() => {
+        console.log(`[INFO] Административные команды установлены для админа ${adminId}.`);
+      }).catch((error) => {
+        console.error(`[ERROR] Не удалось установить команды для админа ${adminId}:`, error.message);
+      });
+    });
+
   } catch (error) {
     console.error('[ERROR] Ошибка при вызове setMyCommands:', error.message);
   }
@@ -87,6 +106,14 @@ const handleStart = async (bot, msg) => {
   const userId = msg.from.id.toString();
   
   console.time(`handleStart_${chatId}`); // Начинаем замер времени
+  
+  // Проверяем, является ли пользователь администратором
+  const isAdmin = config.adminIds.includes(userId);
+  if (isAdmin) {
+    console.log(`[ADMIN] Администратор ${userId} запустил бота, устанавливаем административные команды`);
+    // Устанавливаем административные команды для этого пользователя
+    setupAdminCommands(bot, userId);
+  }
   
   // Отправляем сообщение "печатает..." для мгновенного отклика
   bot.sendChatAction(chatId, 'typing').catch(err => {
@@ -153,16 +180,40 @@ const handleHelp = async (bot, msg) => {
 После загрузки документа выберите свою роль в договоре для получения анализа.
 `;
 
-  if (isAdmin) {
-    helpText += `
+  // Убираем административные команды из текста - админы увидят их в списке команд бота
+  // if (isAdmin) {
+  //   helpText += `
+  // 
+  // 🛠 *Административные команды:*
+  // /users - Показать список последних пользователей
+  // /stats - Показать подробную статистику пользователей и тарифов
+  // `;
+  // }
 
-🛠 *Административные команды:*
-/users - Показать список последних пользователей
-/stats - Показать подробную статистику пользователей и тарифов
-`;
+  const inlineKeyboard = [
+    [
+      { text: '📊 Мой тариф', callback_data: 'tariff' },
+      { text: '💎 Тарифы', callback_data: 'plans' }
+    ],
+    [
+      { text: 'ℹ️ О компании', callback_data: 'about' }
+    ]
+  ];
+
+  // Добавляем административные кнопки только для админов
+  if (isAdmin) {
+    inlineKeyboard.push([
+      { text: '👥 Пользователи', callback_data: 'admin_users' },
+      { text: '📈 Статистика', callback_data: 'admin_stats' }
+    ]);
   }
 
-  await bot.sendMessage(msg.chat.id, helpText, { parse_mode: 'Markdown' });
+  await bot.sendMessage(msg.chat.id, helpText, { 
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: inlineKeyboard
+    }
+  });
 };
 
 /**
@@ -591,6 +642,30 @@ async function handleDetailedStats(bot, msg) {
   }
 };
 
+/**
+ * Устанавливает административные команды для конкретного пользователя
+ * @param {Object} bot - Экземпляр бота
+ * @param {string} userId - ID пользователя
+ */
+async function setupAdminCommands(bot, userId) {
+  try {
+    const adminCommands = [
+      { command: '/start', description: 'Начать работу с ботом' },
+      { command: '/tariff', description: 'Проверить текущий тариф' },
+      { command: '/plans', description: 'Доступные тарифные планы' },
+      { command: '/help', description: 'Список функций бота' },
+      { command: '/about', description: 'Информация о компании' },
+      { command: '/users', description: 'Список пользователей (админ)' },
+      { command: '/stats', description: 'Статистика бота (админ)' }
+    ];
+
+    await bot.setMyCommands(adminCommands, { scope: { type: 'chat', chat_id: userId } });
+    console.log(`[INFO] Административные команды установлены для админа ${userId}.`);
+  } catch (error) {
+    console.error(`[ERROR] Не удалось установить команды для админа ${userId}:`, error.message);
+  }
+}
+
 module.exports = {
   handleStart,
   handleHelp,
@@ -599,5 +674,6 @@ module.exports = {
   handleAdminCallback,
   handleMenuCommand,
   setupPermanentMenu,
+  setupAdminCommands,
   handleAbout
 }; 
