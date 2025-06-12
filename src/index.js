@@ -298,6 +298,24 @@ async function startBot() {
         // Обработка принудительного анализа документа как договора
         console.log('Обработка принудительного анализа документа:', data);
         await handleForceContract(bot, query);
+      } else if (data === 'about') {
+        // Обработка кнопки "О компании"
+        console.log('Обработка кнопки "О компании"');
+        await bot.answerCallbackQuery(query.id);
+        const msg = { chat: { id: query.message.chat.id }, from: query.from };
+        await handleAbout(bot, msg);
+      } else if (data === 'tariff') {
+        // Обработка кнопки "Мой тариф"
+        console.log('Обработка кнопки "Мой тариф"');
+        await bot.answerCallbackQuery(query.id);
+        const msg = { chat: { id: query.message.chat.id }, from: query.from };
+        await handleShowTariff(bot, msg);
+      } else if (data === 'plans') {
+        // Обработка кнопки "Тарифы"
+        console.log('Обработка кнопки "Тарифы"');
+        await bot.answerCallbackQuery(query.id);
+        const msg = { chat: { id: query.message.chat.id }, from: query.from };
+        await handleShowPlans(bot, msg);
       } else {
         console.log('Неизвестный тип callback_query:', data);
         await bot.answerCallbackQuery(query.id, {
