@@ -106,24 +106,34 @@ async function handleShowPlans(bot, msg) {
   
   // Формируем клавиатуру с кнопками выбора тарифа
   const keyboard = {
-    inline_keyboard: [
-      [
-        { text: 'Бесплатный', callback_data: 'select_plan_FREE' }
-      ],
-      [
-        { text: `Базовый - ${PLANS.BASIC.price} ₽`, callback_data: 'select_plan_BASIC' }
-      ],
-      [
-        { text: `Профи - ${PLANS.PRO.price} ₽`, callback_data: 'select_plan_PRO' }
-      ],
-      [
-        { text: `Безлимитный - ${PLANS.UNLIMITED.price} ₽`, callback_data: 'select_plan_UNLIMITED' }
-      ],
-      [
-        { text: '« Назад', callback_data: 'back_to_tariff' }
-      ]
-    ]
+    inline_keyboard: []
   };
+  for (const plan of plans) {
+    if (plan.id === 'FREE') {
+      keyboard.inline_keyboard.push([
+        { text: 'Бесплатный', callback_data: 'select_plan_FREE' }
+      ]);
+    } else if (plan.id === 'BASIC') {
+      keyboard.inline_keyboard.push([
+        { text: `Базовый - ${plan.price} ₽`, callback_data: 'select_plan_BASIC' }
+      ]);
+    } else if (plan.id === 'PRO') {
+      keyboard.inline_keyboard.push([
+        { text: `Профи - ${plan.price} ₽`, callback_data: 'select_plan_PRO' }
+      ]);
+    } else if (plan.id === 'UNLIMITED') {
+      keyboard.inline_keyboard.push([
+        { text: `Безлимитный - ${plan.price} ₽`, callback_data: 'select_plan_UNLIMITED' }
+      ]);
+    } else if (plan.id === 'TEST1RUB') {
+      keyboard.inline_keyboard.push([
+        { text: `Тестовый - ${plan.price} ₽`, callback_data: 'select_plan_TEST1RUB' }
+      ]);
+    }
+  }
+  keyboard.inline_keyboard.push([
+    { text: '« Назад', callback_data: 'back_to_tariff' }
+  ]);
   
   // Отправляем сообщение со списком тарифов
   await bot.sendMessage(chatId, message, {
