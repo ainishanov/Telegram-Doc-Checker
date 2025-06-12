@@ -1,5 +1,5 @@
 const { getUserSettings, updateUserSettings, resetPrompt } = require('../models/userSettings');
-const { PLANS, getUserData } = require('../models/userLimits');
+const { PLANS, getUserData, saveUserData } = require('../models/userLimits');
 const { handleShowTariff } = require('./planHandlers');
 const config = require('../config/config');
 
@@ -43,7 +43,8 @@ function setupPermanentMenu(bot) {
     const adminCommands = [
       ...userCommands,
       { command: '/users', description: 'Список пользователей (админ)' },
-      { command: '/stats', description: 'Статистика бота (админ)' }
+      { command: '/stats', description: 'Статистика бота (админ)' },
+      { command: '/activate_user', description: 'Активация подписки пользователя (админ)' }
     ];
 
     // Устанавливаем команды для обычных пользователей (по умолчанию)
@@ -656,7 +657,8 @@ async function setupAdminCommands(bot, userId) {
       { command: '/help', description: 'Список функций бота' },
       { command: '/about', description: 'Информация о компании' },
       { command: '/users', description: 'Список пользователей (админ)' },
-      { command: '/stats', description: 'Статистика бота (админ)' }
+      { command: '/stats', description: 'Статистика бота (админ)' },
+      { command: '/activate_user', description: 'Активация подписки пользователя (админ)' }
     ];
 
     await bot.setMyCommands(adminCommands, { scope: { type: 'chat', chat_id: userId } });
@@ -665,6 +667,98 @@ async function setupAdminCommands(bot, userId) {
     console.error(`[ERROR] Не удалось установить команды для админа ${userId}:`, error.message);
   }
 }
+
+/**
+ * Обработчик команды /activate_user - ручная активация подписки (только для админов)
+ * Использование: /activate_user USER_ID PLAN_ID
+ * @param {Object} bot - Экземпляр бота 
+ * @param {Object} msg - Сообщение от пользователя
+ */
+const handleActivateUser = async (bot, msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id.toString();
+  
+  // Проверяем, является ли пользователь администратором
+  if (!config.adminIds.includes(userId)) {
+    await bot.sendMessage(chatId, '❌ У вас нет прав для выполнения этой команды.');
+    return;
+  }
+  
+  try {
+    const commandArgs = msg.text.split(' ').slice(1); // Убираем /activate_user
+    
+    if (commandArgs.length < 2) {
+      await bot.sendMessage(chatId, `
+📋 *Команда ручной активации подписки*
+
+*Использование:* \`/activate_user USER_ID PLAN_ID\`
+
+*Доступные планы:*
+• \`BASIC\` - Базовый (290 руб, 10 запросов в месяц)
+• \`PRO\` - Профессиональный (990 руб, 50 запросов в месяц)  
+• \`UNLIMITED\` - Безлимитный (4990 руб, неограниченно)
+
+*Пример:* \`/activate_user 117958330 BASIC\`
+      `, { parse_mode: 'Markdown' });
+      return;
+    }
+    
+    const targetUserId = commandArgs[0];
+    const planId = commandArgs[1].toUpperCase();
+    
+    // Проверяем, что план существует
+    const { PLANS, getUserData, saveUserData } = require('../models/userLimits');
+    
+    if (!PLANS[planId]) {
+      await bot.sendMessage(chatId, `❌ Неизвестный план: ${planId}\n\nДоступные планы: BASIC, PRO, UNLIMITED`);
+      return;
+    }
+    
+    // Получаем данные пользователя
+    const userData = getUserData(targetUserId);
+    const plan = PLANS[planId];
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setDate(startDate.getDate() + plan.duration);
+    
+    // Обновляем данные пользователя
+    userData.plan = planId;
+    userData.requestsUsed = 0; // Сбрасываем счетчик запросов при активации нового тарифа
+    userData.subscriptionData = {
+      active: true,
+      planId: planId,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      paymentStatus: 'paid',
+      paymentId: `admin-activation-${Date.now()}`,
+      activatedAt: new Date().toISOString(),
+      activatedManually: true,
+      activatedBy: userId // ID администратора, который активировал
+    };
+    
+    // Сохраняем обновленные данные
+    saveUserData(targetUserId, userData);
+    
+    // Отправляем подтверждение администратору
+    await bot.sendMessage(chatId, `
+✅ *Подписка успешно активирована!*
+
+👤 **Пользователь:** ${targetUserId}
+📦 **План:** ${plan.name}
+💰 **Цена:** ${plan.price} руб.
+📊 **Лимит запросов:** ${plan.requestLimit >= Number.MAX_SAFE_INTEGER ? 'Неограниченно' : plan.requestLimit + ' в месяц'}
+📅 **Период:** ${startDate.toLocaleDateString('ru-RU')} - ${endDate.toLocaleDateString('ru-RU')} (${plan.duration} дней)
+
+Пользователь может начать использовать платный функционал.
+    `, { parse_mode: 'Markdown' });
+    
+    console.log(`[ADMIN] Администратор ${userId} вручную активировал план ${planId} для пользователя ${targetUserId}`);
+    
+  } catch (error) {
+    console.error('Ошибка при ручной активации подписки:', error);
+    await bot.sendMessage(chatId, '❌ Произошла ошибка при активации подписки.');
+  }
+};
 
 module.exports = {
   handleStart,
@@ -675,5 +769,6 @@ module.exports = {
   handleMenuCommand,
   setupPermanentMenu,
   setupAdminCommands,
-  handleAbout
+  handleAbout,
+  handleActivateUser
 }; 

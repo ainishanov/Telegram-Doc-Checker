@@ -8,7 +8,8 @@ const {
   handleAdminCallback,
   handleMenuCommand,
   setupPermanentMenu,
-  handleAbout
+  handleAbout,
+  handleActivateUser
 } = require('./handlers/commandHandlers');
 const { handleDocument, handlePartySelection, handleTextMessage, handlePhoto, handleForceContract } = require('./handlers/documentHandler');
 const {
@@ -239,6 +240,7 @@ async function startBot() {
   bot.onText(/\/menu/, (msg) => handleMenuCommand(bot, msg));
   bot.onText(/\/tariff/, (msg) => handleShowTariff(bot, msg));
   bot.onText(/\/plans/, (msg) => handleShowPlans(bot, msg));
+  bot.onText(/\/activate_user/, (msg) => handleActivateUser(bot, msg));
   
   // Обработчик для документов
   bot.on('document', (msg) => handleDocument(bot, msg));
