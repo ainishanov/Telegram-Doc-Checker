@@ -404,8 +404,28 @@ async function createPayment(userId, planId, amount, description) {
         userId: userId,
         planId: planId
       },
-      test: yookassaTestMode === true // Добавляем флаг тестового платежа
+      receipt: {
+        customer: {
+          email: 'nishanov.ainur@gmail.com' // Используем email компании в качестве email покупателя
+        },
+        items: [
+          {
+            description: description || `Оплата тарифа ${planId}`,
+            amount: {
+              value: amount.toFixed(2),
+              currency: 'RUB'
+            },
+            vat_code: 1, // НДС не облагается
+            quantity: '1'
+          }
+        ]
+      }
     };
+
+    // Добавляем флаг тестового платежа только для тестового режима
+    if (yookassaTestMode === true) {
+      paymentData.test = true;
+    }
 
     // Если указан метод по умолчанию (например, sberbank), добавляем его в payment_method_data
     if (config.yookassaDefaultMethod) {
@@ -413,6 +433,10 @@ async function createPayment(userId, planId, amount, description) {
         type: config.yookassaDefaultMethod
       };
     }
+    
+    console.log('=== ДАННЫЕ ЗАПРОСА НА СОЗДАНИЕ ПЛАТЕЖА ===');
+    console.log('- Полные данные запроса:', JSON.stringify(paymentData, null, 2));
+    console.log('=== ОТПРАВКА ЗАПРОСА В ЮКАССУ ===');
     
     const payment = await yooKassa.createPayment(paymentData, idempotenceKey);
     
