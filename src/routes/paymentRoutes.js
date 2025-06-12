@@ -158,9 +158,51 @@ router.get('/success', async (req, res) => {
               Если тариф не активировался в течение 10 минут, свяжитесь с поддержкой через бот.
             </div>
             
-            <a class="button" href="https://t.me/DocCheckerProBot">
-              Вернуться к боту
-            </a>
+            <div style="margin-top: 30px;">
+              <button class="button" onclick="openTelegram()" style="margin-bottom: 15px; display: block; width: 100%; border: none; cursor: pointer;">
+                📱 Открыть в Telegram
+              </button>
+              
+              <div style="text-align: center; margin: 15px 0;">
+                <span style="color: #999; font-size: 14px;">или</span>
+              </div>
+              
+              <a class="button secondary" href="https://t.me/DocCheckerProBot" target="_blank" style="background: #f5f5f5; color: #333; margin-bottom: 15px; display: block;">
+                🌐 Открыть в браузере
+              </a>
+              
+              <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin-top: 20px; font-size: 14px; color: #666;">
+                💡 <strong>Если кнопки не работают:</strong><br>
+                1. Откройте Telegram вручную<br>
+                2. Найдите бота: <code style="background: #e8e8e8; padding: 2px 4px; border-radius: 3px;">@DocCheckerProBot</code><br>
+                3. Введите команду <code style="background: #e8e8e8; padding: 2px 4px; border-radius: 3px;">/tariff</code> для проверки статуса
+              </div>
+            </div>
+            
+            <script>
+              function openTelegram() {
+                // Проверяем, мобильное ли устройство
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                
+                if (isMobile) {
+                  // Пытаемся открыть в приложении Telegram
+                  window.location.href = 'tg://resolve?domain=DocCheckerProBot';
+                  
+                  // Через 1.5 секунды, если не открылось, пробуем веб-версию
+                  setTimeout(function() {
+                    window.open('https://t.me/DocCheckerProBot', '_blank');
+                  }, 1500);
+                } else {
+                  // На десктопе сразу открываем веб-версию
+                  window.open('https://t.me/DocCheckerProBot', '_blank');
+                }
+              }
+              
+              // Показываем пользователю подсказку через несколько секунд
+              setTimeout(function() {
+                console.log('Подсказка: используйте кнопки для возврата к боту');
+              }, 3000);
+            </script>
           </div>
         </body>
       </html>
@@ -186,7 +228,20 @@ router.get('/success', async (req, res) => {
         <body>
           <h1 style="color: #4CAF50;">✅ Платеж принят</h1>
           <p>Ваш платеж обрабатывается. Вернитесь в бот и проверьте статус командой /tariff</p>
-          <a href="https://t.me/DocCheckerProBot" style="color: #2196F3;">Вернуться к боту</a>
+          
+          <div style="margin-top: 20px;">
+            <a href="tg://resolve?domain=DocCheckerProBot" style="display: inline-block; background: #2196F3; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px; margin: 5px;">
+              📱 Открыть в Telegram
+            </a>
+            <br>
+            <a href="https://t.me/DocCheckerProBot" target="_blank" style="display: inline-block; background: #f5f5f5; color: #333; padding: 12px 20px; text-decoration: none; border-radius: 5px; margin: 5px;">
+              🌐 Открыть в браузере
+            </a>
+          </div>
+          
+          <p style="margin-top: 20px; font-size: 12px; color: #666;">
+            Или найдите бота: @DocCheckerProBot
+          </p>
         </body>
       </html>
     `);
