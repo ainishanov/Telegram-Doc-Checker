@@ -6,398 +6,277 @@ const db = require('../utils/db');
 const config = require('../config/config');
 
 /**
- * Обработка успешной оплаты
+ * Обработка успешной оплаты - универсальная страница
+ * ЮКасса не передает параметры пользователя в return_url из соображений безопасности
+ * Активация тарифа происходит через webhook автоматически
  */
 router.get('/success', async (req, res) => {
   try {
-    const { userId, paymentId } = req.query;
+    // Логируем параметры для отладки (если они есть)
+    console.log('[INFO] Пользователь перенаправлен на страницу успеха платежа');
+    console.log('- Query параметры:', JSON.stringify(req.query));
     
-    if (!userId || !paymentId) {
-      console.error('[ERROR] В запросе успешного платежа отсутствуют userId или paymentId');
-      return res.status(400).send(`
-        <html>
-          <head>
-            <title>Ошибка платежа</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                text-align: center; 
-                padding: 20px;
-                max-width: 600px;
-                margin: 0 auto;
-                color: #333;
-              }
-              .error {
-                color: #D32F2F;
-                font-size: 24px;
-                margin-bottom: 20px;
-              }
-              .info {
-                margin-bottom: 20px;
-                line-height: 1.5;
-              }
-              .button {
-                display: inline-block;
-                background-color: #2196F3;
-                color: white;
-                padding: 12px 20px;
-                text-decoration: none;
-                border-radius: 4px;
-                font-weight: bold;
-                margin-top: 20px;
-              }
-            </style>
-          </head>
-          <body>
-            <h1 class="error">Ошибка обработки платежа</h1>
-            <p class="info">
-              Отсутствуют необходимые параметры для обработки платежа. Пожалуйста, вернитесь в Telegram и попробуйте оплатить тариф снова.
-            </p>
-            <a class="button" href="https://t.me/DocCheckerProBot">Вернуться к боту</a>
-          </body>
-        </html>
-      `);
-    }
-
-    // Проверяем статус платежа
-    const payment = await checkPaymentStatus(paymentId);
-    
-    if (!payment || !payment.status) {
-      console.error(`[ERROR] Ошибка проверки статуса платежа ${paymentId} для пользователя ${userId}`);
-      return res.status(400).send(`
-        <html>
-          <head>
-            <title>Ошибка платежа</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                text-align: center; 
-                padding: 20px;
-                max-width: 600px;
-                margin: 0 auto;
-                color: #333;
-              }
-              .error {
-                color: #D32F2F;
-                font-size: 24px;
-                margin-bottom: 20px;
-              }
-              .info {
-                margin-bottom: 20px;
-                line-height: 1.5;
-              }
-              .button {
-                display: inline-block;
-                background-color: #2196F3;
-                color: white;
-                padding: 12px 20px;
-                text-decoration: none;
-                border-radius: 4px;
-                font-weight: bold;
-                margin-top: 20px;
-              }
-            </style>
-          </head>
-          <body>
-            <h1 class="error">Ошибка проверки платежа</h1>
-            <p class="info">
-              Не удалось проверить статус вашего платежа. Пожалуйста, подождите несколько минут и проверьте статус своей подписки в боте.
-            </p>
-            <a class="button" href="https://t.me/DocCheckerProBot">Вернуться к боту</a>
-          </body>
-        </html>
-      `);
-    }
-
-    // Проверяем, что платеж успешен
-    if (payment.status === 'succeeded' && payment.paid === true) {
-      // Получаем метаданные платежа
-      const metadata = payment.metadata || {};
-      const planId = metadata.planId;
-      
-      if (!planId) {
-        console.error(`[ERROR] В метаданных платежа ${paymentId} отсутствует planId`);
-        return res.status(400).send(`
-          <html>
-            <head>
-              <title>Ошибка платежа</title>
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body { 
-                  font-family: Arial, sans-serif; 
-                  text-align: center; 
-                  padding: 20px;
-                  max-width: 600px;
-                  margin: 0 auto;
-                  color: #333;
-                }
-                .error {
-                  color: #D32F2F;
-                  font-size: 24px;
-                  margin-bottom: 20px;
-                }
-                .info {
-                  margin-bottom: 20px;
-                  line-height: 1.5;
-                }
-                .button {
-                  display: inline-block;
-                  background-color: #2196F3;
-                  color: white;
-                  padding: 12px 20px;
-                  text-decoration: none;
-                  border-radius: 4px;
-                  font-weight: bold;
-                  margin-top: 20px;
-                }
-              </style>
-            </head>
-            <body>
-              <h1 class="error">Ошибка активации тарифа</h1>
-              <p class="info">
-                Не удалось определить тариф для активации. Платеж прошел успешно, но в данных платежа отсутствует информация о выбранном тарифе.
-                Пожалуйста, свяжитесь с поддержкой через бот, сообщив ID платежа: <strong>${paymentId}</strong>
-              </p>
-              <a class="button" href="https://t.me/DocCheckerProBot">Вернуться к боту</a>
-            </body>
-          </html>
-        `);
-      }
-
-      // Используем новую функцию для обновления тарифа после оплаты
-      const updateResult = await updateUserPlanAfterPayment(userId, planId, paymentId);
-      
-      if (!updateResult.success) {
-        console.error(`[ERROR] Ошибка обновления тарифа ${planId} для пользователя ${userId}: ${updateResult.message}`);
-        return res.status(500).send(`
-          <html>
-            <head>
-              <title>Ошибка активации</title>
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body { 
-                  font-family: Arial, sans-serif; 
-                  text-align: center; 
-                  padding: 20px;
-                  max-width: 600px;
-                  margin: 0 auto;
-                  color: #333;
-                }
-                .error {
-                  color: #D32F2F;
-                  font-size: 24px;
-                  margin-bottom: 20px;
-                }
-                .info {
-                  margin-bottom: 20px;
-                  line-height: 1.5;
-                }
-                .button {
-                  display: inline-block;
-                  background-color: #2196F3;
-                  color: white;
-                  padding: 12px 20px;
-                  text-decoration: none;
-                  border-radius: 4px;
-                  font-weight: bold;
-                  margin-top: 20px;
-                }
-              </style>
-            </head>
-            <body>
-              <h1 class="error">Ошибка активации тарифа</h1>
-              <p class="info">
-                Платеж прошел успешно, но возникла ошибка при активации выбранного тарифа. Пожалуйста, свяжитесь с поддержкой через бот,
-                сообщив ID платежа: <strong>${paymentId}</strong>
-              </p>
-              <a class="button" href="https://t.me/DocCheckerProBot">Вернуться к боту</a>
-            </body>
-          </html>
-        `);
-      }
-
-      // Успешно обновили тариф - показываем страницу с успешной оплатой
-      return res.send(`
-        <html>
-          <head>
-            <title>Оплата успешно завершена</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                text-align: center; 
-                padding: 20px;
-                max-width: 600px;
-                margin: 0 auto;
-                color: #333;
-                background-color: #f9f9f9;
-              }
-              .success {
-                color: #4CAF50;
-                font-size: 24px;
-                margin-bottom: 20px;
-              }
-              .info {
-                margin-bottom: 20px;
-                line-height: 1.5;
-                background-color: #fff;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-              }
-              .button {
-                display: inline-block;
-                background-color: #2196F3;
-                color: white;
-                padding: 12px 20px;
-                text-decoration: none;
-                border-radius: 4px;
-                font-weight: bold;
-                margin-top: 20px;
-                transition: background-color 0.3s;
-              }
-              .button:hover {
-                background-color: #1976D2;
-              }
-              .tariff-details {
-                margin: 20px 0;
-                padding: 15px;
-                background-color: #E8F5E9;
-                border-radius: 8px;
-                text-align: left;
-              }
-              .tariff-name {
-                font-weight: bold;
-                color: #2E7D32;
-                font-size: 18px;
-              }
-              .payment-id {
-                font-size: 12px;
-                color: #757575;
-                margin-top: 20px;
-              }
-            </style>
-          </head>
-          <body>
-            <h1 class="success">Оплата успешно завершена!</h1>
-            <div class="info">
-              <p>Ваш тариф успешно активирован и готов к использованию.</p>
-              
-              <div class="tariff-details">
-                <p class="tariff-name">Тариф: ${planId}</p>
-                <p>Статус: Активен</p>
-                <p>Дата активации: ${new Date().toLocaleDateString()}</p>
-              </div>
-              
-              <p>Теперь вы можете вернуться в Telegram и продолжить использование бота со всеми преимуществами вашего тарифа.</p>
-            </div>
-            
-            <a class="button" href="https://t.me/DocCheckerProBot">Вернуться к боту</a>
-            
-            <p class="payment-id">ID платежа: ${paymentId}</p>
-          </body>
-        </html>
-      `);
-    } else {
-      console.error(`[ERROR] Платеж ${paymentId} имеет статус ${payment.status}, ожидался статус succeeded`);
-      return res.status(400).send(`
-        <html>
-          <head>
-            <title>Платеж не завершен</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                text-align: center; 
-                padding: 20px;
-                max-width: 600px;
-                margin: 0 auto;
-                color: #333;
-              }
-              .warning {
-                color: #FF9800;
-                font-size: 24px;
-                margin-bottom: 20px;
-              }
-              .info {
-                margin-bottom: 20px;
-                line-height: 1.5;
-              }
-              .button {
-                display: inline-block;
-                background-color: #2196F3;
-                color: white;
-                padding: 12px 20px;
-                text-decoration: none;
-                border-radius: 4px;
-                font-weight: bold;
-                margin-top: 20px;
-              }
-              .status {
-                font-weight: bold;
-                color: #FF5722;
-              }
-            </style>
-          </head>
-          <body>
-            <h1 class="warning">Платеж не завершен</h1>
-            <p class="info">
-              Ваш платеж имеет статус <span class="status">${payment.status}</span> и еще не завершен или был отклонен.
-              Пожалуйста, проверьте состояние платежа в своем банке и повторите попытку оплаты, если необходимо.
-            </p>
-            <a class="button" href="https://t.me/DocCheckerProBot">Вернуться к боту</a>
-          </body>
-        </html>
-      `);
-    }
-  } catch (error) {
-    console.error('[ERROR] Ошибка при обработке успешного платежа:', error);
-    return res.status(500).send(`
+    // Показываем универсальную страницу успеха
+    return res.status(200).send(`
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Ошибка обработки платежа</title>
+          <title>Платеж принят</title>
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta charset="utf-8">
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+              margin: 0;
+              padding: 20px;
+              color: #333;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: white;
+              padding: 40px 30px;
+              border-radius: 16px;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+              max-width: 500px;
+              width: 100%;
+              text-align: center;
+            }
+            .success-icon {
+              font-size: 64px;
+              margin-bottom: 20px;
+              animation: bounce 1s ease-in-out;
+            }
+            @keyframes bounce {
+              0%, 20%, 60%, 100% { transform: translateY(0); }
+              40% { transform: translateY(-20px); }
+              80% { transform: translateY(-10px); }
+            }
+            .title {
+              color: #4CAF50;
+              font-size: 28px;
+              font-weight: 600;
+              margin-bottom: 16px;
+            }
+            .subtitle {
+              color: #666;
+              font-size: 16px;
+              line-height: 1.5;
+              margin-bottom: 30px;
+            }
+            .info-box {
+              background: #f8f9fa;
+              padding: 20px;
+              border-radius: 12px;
+              margin: 20px 0;
+              border-left: 4px solid #4CAF50;
+              text-align: left;
+            }
+            .steps {
+              margin: 15px 0;
+            }
+            .step {
+              margin: 10px 0;
+              padding: 8px 0;
+              border-bottom: 1px solid #eee;
+              display: flex;
+              align-items: center;
+            }
+            .step:last-child {
+              border-bottom: none;
+            }
+            .step-number {
+              background: #4CAF50;
+              color: white;
+              width: 24px;
+              height: 24px;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              margin-right: 12px;
+              font-size: 14px;
+              font-weight: 600;
+              flex-shrink: 0;
+            }
+            .button {
+              display: inline-block;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              padding: 16px 32px;
+              text-decoration: none;
+              border-radius: 25px;
+              font-weight: 600;
+              font-size: 16px;
+              transition: transform 0.2s, box-shadow 0.2s;
+              box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+              margin-top: 20px;
+            }
+            .button:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+            }
+            .note {
+              color: #666; 
+              font-size: 14px; 
+              margin: 20px 0;
+              line-height: 1.4;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="success-icon">✅</div>
+            <h1 class="title">Платеж принят!</h1>
+            <p class="subtitle">
+              Спасибо за покупку! Ваш платеж успешно обработан.
+            </p>
+            
+            <div class="info-box">
+              <strong>Что происходит дальше:</strong>
+              <div class="steps">
+                <div class="step">
+                  <span class="step-number">1</span>
+                  <span>Платеж обрабатывается платежной системой</span>
+                </div>
+                <div class="step">
+                  <span class="step-number">2</span>
+                  <span>Тариф активируется автоматически (1-3 минуты)</span>
+                </div>
+                <div class="step">
+                  <span class="step-number">3</span>
+                  <span>Вы получите уведомление в боте о активации</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="note">
+              Проверить статус подписки: <strong>/tariff</strong><br>
+              Если тариф не активировался в течение 10 минут, свяжитесь с поддержкой через бот.
+            </div>
+            
+            <a class="button" href="https://t.me/DocCheckerProBot">
+              Вернуться к боту
+            </a>
+          </div>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error('[ERROR] Ошибка на странице успеха платежа:', error);
+    return res.status(200).send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Платеж принят</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta charset="utf-8">
           <style>
             body { 
               font-family: Arial, sans-serif; 
               text-align: center; 
               padding: 20px;
-              max-width: 600px;
-              margin: 0 auto;
               color: #333;
-            }
-            .error {
-              color: #D32F2F;
-              font-size: 24px;
-              margin-bottom: 20px;
-            }
-            .info {
-              margin-bottom: 20px;
-              line-height: 1.5;
-            }
-            .button {
-              display: inline-block;
-              background-color: #2196F3;
-              color: white;
-              padding: 12px 20px;
-              text-decoration: none;
-              border-radius: 4px;
-              font-weight: bold;
-              margin-top: 20px;
             }
           </style>
         </head>
         <body>
-          <h1 class="error">Произошла ошибка</h1>
-          <p class="info">
-            При обработке платежа произошла непредвиденная ошибка. Пожалуйста, вернитесь в бот и свяжитесь с поддержкой или повторите попытку позднее.
-          </p>
-          <a class="button" href="https://t.me/DocCheckerProBot">Вернуться к боту</a>
+          <h1 style="color: #4CAF50;">✅ Платеж принят</h1>
+          <p>Ваш платеж обрабатывается. Вернитесь в бот и проверьте статус командой /tariff</p>
+          <a href="https://t.me/DocCheckerProBot" style="color: #2196F3;">Вернуться к боту</a>
         </body>
       </html>
     `);
+  }
+});
+
+/**
+ * Создание платежа
+ */
+router.post('/create', async (req, res) => {
+  try {
+    const { userId, planId, amount, description } = req.body;
+    
+    if (!userId || !planId || !amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Отсутствуют обязательные параметры'
+      });
+    }
+
+    const payment = await createPayment({
+      userId,
+      planId,
+      amount,
+      description,
+      returnUrl: config.yookassaReturnUrl
+    });
+
+    if (!payment || !payment.success) {
+      return res.status(400).json({
+        success: false,
+        message: payment ? payment.message : 'Ошибка создания платежа'
+      });
+    }
+
+    res.json({
+      success: true,
+      paymentUrl: payment.paymentUrl,
+      paymentId: payment.paymentId
+    });
+
+  } catch (error) {
+    console.error('[ERROR] Ошибка создания платежа:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Внутренняя ошибка сервера'
+    });
+  }
+});
+
+/**
+ * Проверка статуса платежа
+ */
+router.get('/status/:paymentId', async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    
+    if (!paymentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID платежа не указан'
+      });
+    }
+
+    const payment = await checkPaymentStatus(paymentId);
+    
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Платеж не найден'
+      });
+    }
+
+    res.json({
+      success: true,
+      payment: {
+        id: payment.id,
+        status: payment.status,
+        paid: payment.paid,
+        amount: payment.amount,
+        description: payment.description
+      }
+    });
+
+  } catch (error) {
+    console.error('[ERROR] Ошибка проверки статуса платежа:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Ошибка проверки статуса платежа'
+    });
   }
 });
 
@@ -406,62 +285,44 @@ router.get('/success', async (req, res) => {
  */
 router.post('/notifications', async (req, res) => {
   try {
-    console.log('=== ПОЛУЧЕН WEBHOOK ОТ ЮКАССЫ ===');
-    console.log('- Headers:', JSON.stringify(req.headers));
-    console.log('- Body:', JSON.stringify(req.body));
-    
-    // ВСЕГДА отвечаем 200 сначала, чтобы ЮКасса не повторяла запрос
-    res.status(200).json({ success: true, message: 'Webhook получен' });
-
     // Проверяем и обрабатываем уведомление
     const notification = await processNotification(req.body);
     
     if (!notification || !notification.success) {
       console.error('[ERROR] Получено невалидное уведомление о платеже:', notification ? notification.message : 'нет данных');
-      return;
+      return res.status(200).json({ success: true }); // Всегда отвечаем 200, чтобы ЮКасса не повторяла запросы
     }
 
     // Получаем данные из уведомления
     const { event, paymentId, status, metadata } = notification;
     
-    console.log(`[INFO] Обработка события ${event} для платежа ${paymentId} со статусом ${status}`);
+    console.log(`[INFO] Получено уведомление: событие=${event}, платеж=${paymentId}, статус=${status}`);
+    console.log(`[INFO] Метаданные:`, JSON.stringify(metadata));
     
     if (event === 'payment.succeeded' && status === 'succeeded') {
       const { userId, planId } = metadata;
       
       if (!userId || !planId) {
         console.error('[ERROR] В метаданных платежа отсутствуют необходимые поля userId или planId');
-        console.error('- Metadata:', JSON.stringify(metadata));
-        return;
+        console.error('- Полученные метаданные:', JSON.stringify(metadata));
+        return res.status(200).json({ success: true });
       }
 
-      console.log(`[INFO] Активация тарифа ${planId} для пользователя ${userId} после платежа ${paymentId}`);
+      console.log(`[INFO] Обработка успешного платежа ${paymentId} для пользователя ${userId}, активация плана ${planId}`);
       
-      // Используем новую функцию для обновления тарифа после оплаты
-      const updateResult = await updateUserPlanAfterPayment(userId, planId, paymentId);
-      
-      if (!updateResult.success) {
-        console.error(`[ERROR] Ошибка обновления тарифа ${planId} для пользователя ${userId} по уведомлению: ${updateResult.message}`);
-        return;
-      }
-
-      // Сохраняем информацию о платеже в БД
       try {
-        await db.savePayment({
-          userId,
-          paymentId,
-          planId,
-          amount: notification.amount,
-          status: notification.status,
-          createdAt: new Date().toISOString(),
-          metadata
-        });
-      } catch (dbError) {
-        console.error('[ERROR] Ошибка сохранения платежа в БД:', dbError);
-        // Продолжаем выполнение, так как тариф уже активирован
+        // Используем функцию для активации тарифа после оплаты
+        const updateResult = await updateUserPlanAfterPayment(userId, planId, paymentId);
+        
+        if (updateResult.success) {
+          console.log(`[SUCCESS] ✅ Успешно обработано уведомление о платеже ${paymentId} для пользователя ${userId}, тариф ${planId} активирован`);
+        } else {
+          console.error(`[ERROR] Ошибка активации тарифа: ${updateResult.message}`);
+        }
+      } catch (activationError) {
+        console.error('[ERROR] Критическая ошибка при активации тарифа:', activationError);
       }
-
-      console.log(`[SUCCESS] ✅ Успешно обработано уведомление о платеже ${paymentId} для пользователя ${userId}, тариф ${planId} активирован`);
+      
     } else if (event === 'refund.succeeded') {
       // Обработка возврата средств
       const { userId, planId } = metadata;
@@ -491,159 +352,14 @@ router.post('/notifications', async (req, res) => {
     } else {
       console.log(`[INFO] Получено событие ${event} со статусом ${status} - обработка не требуется`);
     }
-  } catch (error) {
-    console.error('[ERROR] Критическая ошибка при обработке webhook от ЮКассы:', error);
-    // Не возвращаем ошибку, так как уже ответили 200
-  }
-});
 
-/**
- * Создание нового платежа
- */
-router.post('/create', async (req, res) => {
-  try {
-    const { userId, planId, amount, description } = req.body;
+    // Всегда отвечаем успехом, чтобы ЮКасса прекратила отправку уведомлений
+    res.status(200).json({ success: true });
     
-    if (!userId || !planId) {
-      console.error('[ERROR] Отсутствуют необходимые параметры userId или planId');
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Необходимо указать userId и planId' 
-      });
-    }
-    
-    // Проверяем существование тарифа
-    const userData = getUserData(userId);
-    
-    // Создаем платеж
-    try {
-      // Получаем сумму из тарифа, если не указана явно
-      const finalAmount = amount || (PLANS[planId] ? PLANS[planId].price : 0);
-      
-      if (!finalAmount) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Не указана сумма платежа и невозможно определить её из тарифа' 
-        });
-      }
-      
-      // Создаем платеж в YooKassa
-      const paymentData = await createPayment(
-        userId, 
-        planId, 
-        finalAmount, 
-        description || `Оплата тарифа ${planId} для пользователя ${userId}`
-      );
-      
-      if (!paymentData) {
-        return res.status(500).json({ 
-          success: false, 
-          message: 'Ошибка при создании платежа' 
-        });
-      }
-      
-      // Получаем URL для оплаты
-      const paymentUrl = getPaymentUrl(paymentData);
-      
-      if (!paymentUrl) {
-        return res.status(500).json({ 
-          success: false, 
-          message: 'Не удалось получить URL для оплаты' 
-        });
-      }
-      
-      // Сохраняем информацию о платеже
-      await db.savePayment({
-        userId,
-        planId,
-        paymentId: paymentData.id,
-        amount: finalAmount,
-        status: paymentData.status,
-        createdAt: new Date().toISOString(),
-        metadata: paymentData.metadata
-      });
-      
-      // Возвращаем данные для перенаправления на страницу оплаты
-      return res.status(200).json({
-        success: true,
-        message: 'Платеж успешно создан',
-        payment: {
-          id: paymentData.id,
-          status: paymentData.status,
-          amount: finalAmount,
-          paymentUrl: paymentUrl
-        }
-      });
-    } catch (error) {
-      console.error('[ERROR] Ошибка при создании платежа:', error);
-      return res.status(500).json({ 
-        success: false, 
-        message: `Ошибка при создании платежа: ${error.message}` 
-      });
-    }
   } catch (error) {
-    console.error('[ERROR] Критическая ошибка при создании платежа:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Произошла ошибка при обработке запроса' 
-    });
-  }
-});
-
-// Маршрут для проверки статуса платежа
-router.get('/status/:paymentId', async (req, res) => {
-  try {
-    const { paymentId } = req.params;
-    
-    if (!paymentId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Необходимо указать ID платежа' 
-      });
-    }
-    
-    // Проверяем статус платежа в YooKassa
-    const payment = await checkPaymentStatus(paymentId);
-    
-    if (!payment) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Платеж не найден' 
-      });
-    }
-    
-    // Обновляем статус платежа в БД
-    await db.updatePaymentStatus(paymentId, payment.status);
-    
-    // Если платеж успешен, активируем тариф
-    if (payment.status === 'succeeded' && payment.paid === true) {
-      const metadata = payment.metadata || {};
-      const userId = metadata.userId;
-      const planId = metadata.planId;
-      
-      if (userId && planId) {
-        // Обновляем тариф пользователя
-        await updateUserPlanAfterPayment(userId, planId, paymentId);
-      }
-    }
-    
-    return res.status(200).json({
-      success: true,
-      payment: {
-        id: payment.id,
-        status: payment.status,
-        paid: payment.paid,
-        amount: payment.amount,
-        createdAt: payment.created_at,
-        metadata: payment.metadata
-      }
-    });
-  } catch (error) {
-    console.error('[ERROR] Ошибка при проверке статуса платежа:', error);
-    return res.status(500).json({ 
-      success: false, 
-      message: `Ошибка при проверке статуса платежа: ${error.message}` 
-    });
+    console.error('[ERROR] Критическая ошибка при обработке webhook уведомления:', error);
+    // Даже при ошибке отвечаем успехом, чтобы избежать повторных запросов
+    res.status(200).json({ success: true });
   }
 });
 
