@@ -371,6 +371,49 @@ router.post('/notifications', async (req, res) => {
         
         if (updateResult.success) {
           console.log(`[SUCCESS] ✅ Успешно обработано уведомление о платеже ${paymentId} для пользователя ${userId}, тариф ${planId} активирован`);
+          
+          // Отправляем уведомление пользователю об активации тарифа
+          try {
+            const TelegramBot = require('node-telegram-bot-api');
+            const telegramConfig = require('../config/config');
+            const { PLANS } = require('../models/userLimits');
+            
+            // Создаем экземпляр бота для отправки уведомления
+            const bot = new TelegramBot(telegramConfig.telegramToken);
+            
+            const plan = PLANS[planId];
+            if (plan) {
+              let message = `🎉 *Поздравляем! Тариф активирован!*\n\n`;
+              message += `✅ Тариф *"${plan.name}"* успешно активирован\n`;
+              message += `💰 Стоимость: ${plan.price} ₽\n`;
+              message += `📅 Период: ${plan.duration} дней\n`;
+              
+              if (plan.requestLimit >= Number.MAX_SAFE_INTEGER) {
+                message += `📊 Проверок договоров: *Неограниченно*\n\n`;
+              } else {
+                message += `📊 Проверок договоров: *${plan.requestLimit} в месяц*\n\n`;
+              }
+              
+              message += `Теперь вы можете пользоваться всеми возможностями бота!\n\n`;
+              message += `Для проверки статуса тарифа используйте команду /tariff`;
+              
+              // Отправляем сообщение пользователю
+              await bot.sendMessage(userId, message, { 
+                parse_mode: 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [
+                    [
+                      { text: '📊 Мой тариф', callback_data: 'show_tariff' }
+                    ]
+                  ]
+                }
+              });
+              
+              console.log(`[SUCCESS] ✅ Уведомление об активации тарифа отправлено пользователю ${userId}`);
+            }
+          } catch (notificationError) {
+            console.error(`[ERROR] Ошибка отправки уведомления пользователю ${userId}:`, notificationError.message);
+          }
         } else {
           console.error(`[ERROR] Ошибка активации тарифа: ${updateResult.message}`);
         }
