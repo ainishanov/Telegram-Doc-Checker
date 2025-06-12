@@ -211,18 +211,23 @@ router.post('/refund', async (req, res) => {
 });
 
 /**
- * Обработка уведомлений (webhook) от ЮKassa
+ * Обработка уведомлений (webhook) от ЮKassa - альтернативный endpoint
  */
 router.post('/webhook', async (req, res) => {
   try {
+    console.log('=== ПОЛУЧЕН WEBHOOK НА АЛЬТЕРНАТИВНЫЙ ENDPOINT /yookassa/webhook ===');
+    console.log('- Headers:', JSON.stringify(req.headers));
+    console.log('- Body:', JSON.stringify(req.body));
+    
+    // ВСЕГДА отвечаем 200 сначала, чтобы ЮКасса не повторяла запрос
+    res.status(200).send({ success: true });
+
     // Получаем подпись из заголовка
     const signature = req.headers['webhook-signature'];
     
     if (!signature) {
-      return res.status(400).send({
-        success: false,
-        error: 'Отсутствует подпись запроса'
-      });
+      console.error('[ERROR] Отсутствует подпись запроса');
+      return;
     }
     
     // Обрабатываем уведомление
@@ -232,47 +237,64 @@ router.post('/webhook', async (req, res) => {
       // Реализация логики в зависимости от типа события
       const { event, data } = result;
       
+      console.log(`[INFO] Обработка события ${event} для объекта ${data.id}`);
+      
       switch (event) {
         case 'payment.succeeded':
           // Платеж успешно завершен
-          console.log('Платеж успешно завершен:', data.id);
-          // Обновление статуса заказа в базе данных
+          console.log('✅ Платеж успешно завершен:', data.id);
+          
+          // Получаем метаданные для активации тарифа
+          const userId = data.metadata?.userId;
+          const planId = data.metadata?.planId;
+          
+          if (userId && planId) {
+            console.log(`[INFO] Активация тарифа ${planId} для пользователя ${userId}`);
+            
+            // Импортируем функцию активации тарифа
+            const { updateUserPlanAfterPayment } = require('../models/userLimits');
+            
+            try {
+              const updateResult = await updateUserPlanAfterPayment(userId, planId, data.id);
+              
+              if (updateResult.success) {
+                console.log(`[SUCCESS] ✅ Тариф ${planId} успешно активирован для пользователя ${userId}`);
+              } else {
+                console.error(`[ERROR] Ошибка активации тарифа: ${updateResult.message}`);
+              }
+            } catch (activationError) {
+              console.error('[ERROR] Критическая ошибка при активации тарифа:', activationError);
+            }
+          } else {
+            console.warn('[WARN] В метаданных платежа отсутствуют userId или planId');
+            console.warn('- Metadata:', JSON.stringify(data.metadata));
+          }
           break;
           
         case 'payment.waiting_for_capture':
           // Платеж ожидает подтверждения
-          console.log('Платеж ожидает подтверждения:', data.id);
-          // Отправка уведомления администратору о необходимости подтверждения
+          console.log('⏳ Платеж ожидает подтверждения:', data.id);
           break;
           
         case 'payment.canceled':
           // Платеж отменен
-          console.log('Платеж отменен:', data.id);
-          // Обновление статуса заказа в базе данных
+          console.log('❌ Платеж отменен:', data.id);
           break;
           
         case 'refund.succeeded':
           // Возврат выполнен
-          console.log('Возврат выполнен:', data.id);
-          // Обновление статуса заказа в базе данных
+          console.log('💰 Возврат выполнен:', data.id);
           break;
+          
+        default:
+          console.log(`[INFO] Получено событие ${event} - обработка не требуется`);
       }
-      
-      // Возвращаем успешный ответ
-      return res.status(200).send({ success: true });
     } else {
-      return res.status(400).send({
-        success: false,
-        error: result.error
-      });
+      console.error('[ERROR] Ошибка обработки уведомления:', result.error);
     }
   } catch (error) {
-    console.error('Ошибка при обработке уведомления:', error.message);
-    
-    return res.status(500).send({
-      success: false,
-      error: error.message
-    });
+    console.error('[ERROR] Критическая ошибка при обработке webhook:', error.message);
+    // Не возвращаем ошибку, так как уже ответили 200
   }
 });
 

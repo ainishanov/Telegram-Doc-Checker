@@ -406,53 +406,68 @@ router.get('/success', async (req, res) => {
  */
 router.post('/notifications', async (req, res) => {
   try {
+    console.log('=== ПОЛУЧЕН WEBHOOK ОТ ЮКАССЫ ===');
+    console.log('- Headers:', JSON.stringify(req.headers));
+    console.log('- Body:', JSON.stringify(req.body));
+    
+    // ВСЕГДА отвечаем 200 сначала, чтобы ЮКасса не повторяла запрос
+    res.status(200).json({ success: true, message: 'Webhook получен' });
+
     // Проверяем и обрабатываем уведомление
     const notification = await processNotification(req.body);
     
     if (!notification || !notification.success) {
       console.error('[ERROR] Получено невалидное уведомление о платеже:', notification ? notification.message : 'нет данных');
-      return res.status(400).json({ success: false, message: 'Невалидное уведомление' });
+      return;
     }
 
     // Получаем данные из уведомления
     const { event, paymentId, status, metadata } = notification;
+    
+    console.log(`[INFO] Обработка события ${event} для платежа ${paymentId} со статусом ${status}`);
     
     if (event === 'payment.succeeded' && status === 'succeeded') {
       const { userId, planId } = metadata;
       
       if (!userId || !planId) {
         console.error('[ERROR] В метаданных платежа отсутствуют необходимые поля userId или planId');
-        return res.status(400).json({ success: false, message: 'Невалидные метаданные платежа' });
+        console.error('- Metadata:', JSON.stringify(metadata));
+        return;
       }
 
+      console.log(`[INFO] Активация тарифа ${planId} для пользователя ${userId} после платежа ${paymentId}`);
+      
       // Используем новую функцию для обновления тарифа после оплаты
       const updateResult = await updateUserPlanAfterPayment(userId, planId, paymentId);
       
       if (!updateResult.success) {
         console.error(`[ERROR] Ошибка обновления тарифа ${planId} для пользователя ${userId} по уведомлению: ${updateResult.message}`);
-        return res.status(500).json({ success: false, message: updateResult.message });
+        return;
       }
 
       // Сохраняем информацию о платеже в БД
-      await db.savePayment({
-        userId,
-        paymentId,
-        planId,
-        amount: notification.amount,
-        status: notification.status,
-        createdAt: new Date().toISOString(),
-        metadata
-      });
+      try {
+        await db.savePayment({
+          userId,
+          paymentId,
+          planId,
+          amount: notification.amount,
+          status: notification.status,
+          createdAt: new Date().toISOString(),
+          metadata
+        });
+      } catch (dbError) {
+        console.error('[ERROR] Ошибка сохранения платежа в БД:', dbError);
+        // Продолжаем выполнение, так как тариф уже активирован
+      }
 
-      console.log(`[INFO] Успешно обработано уведомление о платеже ${paymentId} для пользователя ${userId}, тариф ${planId}`);
-      return res.status(200).json({ success: true, message: 'Уведомление обработано успешно' });
+      console.log(`[SUCCESS] ✅ Успешно обработано уведомление о платеже ${paymentId} для пользователя ${userId}, тариф ${planId} активирован`);
+    } else {
+      console.log(`[INFO] Получено событие ${event} со статусом ${status} - обработка не требуется`);
     }
-    
-    // Для других событий просто отправляем успешный ответ
-    return res.status(200).json({ success: true, message: 'Уведомление получено' });
   } catch (error) {
-    console.error('[ERROR] Ошибка при обработке уведомления о платеже:', error);
-    return res.status(500).json({ success: false, message: 'Произошла ошибка при обработке уведомления о платеже' });
+    console.error('[ERROR] Критическая ошибка при обработке webhook от ЮКассы:', error);
+    // Не возвращаем ошибку, так как уже ответили 200
   }
 });
 
