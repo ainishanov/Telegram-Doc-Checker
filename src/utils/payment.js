@@ -502,7 +502,8 @@ function processNotification(notification) {
     // Проверяем тип уведомления
     if (notification.event !== 'payment.succeeded' && 
         notification.event !== 'payment.waiting_for_capture' &&
-        notification.event !== 'payment.canceled') {
+        notification.event !== 'payment.canceled' &&
+        notification.event !== 'refund.succeeded') {
       throw new Error(`Неизвестный тип уведомления: ${notification.event}`);
     }
     
@@ -527,7 +528,8 @@ function processNotification(notification) {
       description: payment.description,
       userId: userId,
       planId: planId,
-      createdAt: payment.created_at
+      createdAt: payment.created_at,
+      metadata: payment.metadata || {}
     };
     
     console.log('=== Уведомление обработано ===');

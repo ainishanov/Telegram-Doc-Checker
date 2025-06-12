@@ -81,6 +81,10 @@ async function startBot() {
   let bot;
   
   console.log('Запуск бота в режиме webhook на Render');
+  // Логируем текущий коммит (Render передаёт переменную RENDER_GIT_COMMIT)
+  if (process.env.RENDER_GIT_COMMIT) {
+    console.log('Commit SHA:', process.env.RENDER_GIT_COMMIT);
+  }
   
   bot = new TelegramBot(config.telegramToken);
   
@@ -290,7 +294,8 @@ bot.onText(/\/refund_user/, (msg) => handleRefundUser(bot, msg));
           data === 'activate_subscription' || 
           data.startsWith('direct_activate_') || 
           data.startsWith('select_plan_') || 
-          data.startsWith('confirm_plan_')) {
+          data.startsWith('confirm_plan_') ||
+          data.startsWith('check_payment_')) {
         await handleTariffCallback(bot, query);
       } else if (data.startsWith('party_')) {
         await handlePartySelection(bot, query);
@@ -321,10 +326,17 @@ bot.onText(/\/refund_user/, (msg) => handleRefundUser(bot, msg));
         const msg = { chat: { id: query.message.chat.id }, from: query.from };
         await handleShowPlans(bot, msg);
       } else {
-        console.log('Неизвестный тип callback_query:', data);
-        await bot.answerCallbackQuery(query.id, {
-          text: 'Неизвестный тип кнопки'
-        });
+        // Резервная проверка: если почему-то не сработало основное условие,
+        // но строка содержит check_payment_, всё равно обрабатываем тарифный колбэк
+        if (data && data.includes('check_payment_')) {
+          console.warn('[WARN] Fallback обработка check_payment_');
+          await handleTariffCallback(bot, query);
+        } else {
+          console.log('Неизвестный тип callback_query:', data);
+          await bot.answerCallbackQuery(query.id, {
+            text: 'Неизвестный тип кнопки'
+          });
+        }
       }
     } catch (error) {
       console.error('Ошибка при обработке callback_query:', error);
