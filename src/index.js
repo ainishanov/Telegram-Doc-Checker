@@ -20,6 +20,7 @@ const {
 } = require('./handlers/planHandlers');
 const express = require('express');
 const dotenv = require('dotenv');
+const { logEvent } = require('./utils/eventLogger');
 
 // Проверка наличия необходимых переменных окружения
 if (!config.telegramToken) {
@@ -154,8 +155,17 @@ async function startBot() {
       console.log('Создана директория для публичных файлов:', publicDir);
     }
     
-    // Добавим логирование запросов
+    // Список устаревших токенов, запросы на которые следует игнорировать
+    const obsoleteTokens = [
+      '118279810:AAHfGqZ3NwKIDLz2vP4zOJ_v2jZgzpOFzu0' // старый токен бота, больше не используется
+    ];
+
     app.use((req, res, next) => {
+      // Если это запрос на устаревший webhook – сразу отвечаем 200 без логирования
+      if (obsoleteTokens.some((t) => req.path.includes(`/webhook/${t}`))) {
+        return res.sendStatus(200);
+      }
+
       console.log(`Получен ${req.method} запрос на ${req.path}`);
       next();
     });
@@ -267,10 +277,14 @@ bot.onText(/\/refund_user/, (msg) => handleRefundUser(bot, msg));
     console.log(`Получено текстовое сообщение: "${text}", isCommand: ${isCommand}, isMenuButton: ${isMenuButton}`);
     
     if (isMenuButton) {
+      // Логируем нажатие кнопки меню
+      logEvent({ userId: msg.from.id, step: `menu_button:${text}` });
       // Если это кнопка меню, обрабатываем её с помощью handleMenuCommand
       console.log(`Обработка кнопки меню: ${text}`);
       handleMenuCommand(bot, msg);
     } else if (!isCommand) {
+      // Логируем обычный текст пользователя
+      logEvent({ userId: msg.from.id, step: 'text_message' });
       // Если это не команда и не кнопка меню, обрабатываем как обычное текстовое сообщение
       handleTextMessage(bot, msg);
     }
@@ -279,6 +293,8 @@ bot.onText(/\/refund_user/, (msg) => handleRefundUser(bot, msg));
   // Обработчик для callback_query (кнопок)
   bot.on('callback_query', async (query) => {
     const data = query.data;
+    // Логируем callback событие
+    logEvent({ userId: query.from.id, step: `callback:${data.split(':')[0]}` });
     
     try {
       console.log('Получен callback_query:', data);
